@@ -79,8 +79,10 @@ await client.connect(new StdioClientTransport({ command: process.execPath, args:
 try {
   const { tools } = await client.listTools();
   const preview = tools.find(tool => tool.name === 'preview_changes');
-  if (tools.length !== 18 || !preview || !JSON.stringify(preview.inputSchema).includes('set_room_metadata')) {
-    throw Error(`Release MCP server returned ${tools.length} tools or preview_changes omitted set_room_metadata.`);
+  if (tools.length !== 20 || !tools.some(tool => tool.name === 'get_model_warnings') ||
+      !tools.some(tool => tool.name === 'get_room_boundaries') || !preview ||
+      !JSON.stringify(preview.inputSchema).includes('set_room_metadata')) {
+    throw Error(`Release MCP server returned ${tools.length} tools or omitted required warnings, room boundaries or set_room_metadata support.`);
   }
 } finally {
   await client.close();
