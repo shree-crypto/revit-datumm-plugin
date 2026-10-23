@@ -54,7 +54,7 @@ internal sealed class DraftingService
                     .EnumerateObject().ToDictionary(p => p.Name, p => (object)p.Value);
                 capabilityResult["supportedReads"] = new[] { "get_dimension_references", "get_model_elements", "get_model_inventory",
                     "get_model_views", "get_model_quantities", "get_plan_snapshot", "get_plan_image", "get_model_catalog",
-                    "get_selection", "get_operation_status", "get_model_warnings" };
+                    "get_selection", "get_operation_status", "get_model_warnings", "get_room_boundaries" };
                 if (args.TryGetProperty("mirrorProbe", out var mirrorProbe))
                     capabilityResult["mirrorProbe"] = ReflectionProbe.Read(doc, dispatcher, mirrorProbe);
                 return capabilityResult;
@@ -141,6 +141,9 @@ internal sealed class DraftingService
             case "get_model_warnings":
                 Only(args, "offset", "limit");
                 return ModelWarnings.Read(doc, dispatcher, args);
+            case "get_room_boundaries":
+                Only(args, "roomIds", "phaseId", "boundaryLocation");
+                return SpatialInspection.RoomBoundaries(doc, dispatcher, args);
             case "get_plan_snapshot":
                 Only(args, "viewId");
                 return ModelInspection.Snapshot(doc, dispatcher, args);

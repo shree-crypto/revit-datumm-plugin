@@ -61,6 +61,8 @@ export const draftingTools = {
       levelId:id.optional(),offset:z.number().int().nonnegative().optional(),limit:z.number().int().min(1).max(100).optional()}).strict()},
   get_model_warnings: { description: 'Read a deterministic bounded page of current host-document persistent warnings. Element identities and descriptions have explicit coverage limits; transaction receipt warnings are separate.',
     schema:z.object({sessionId:z.string().uuid(),offset:z.number().int().nonnegative().max(2147483647).optional(),limit:z.number().int().min(1).max(100).optional()}).strict()},
+  get_room_boundaries: {description:'Read phase-scoped finish-boundary evidence for exactly two existing rooms. Returns measured local straight-wall spans, explicit linked or unsupported provenance and bounded existing opening intervals; no model changes.',
+    schema:z.object({sessionId:z.string().uuid(),roomIds:z.array(id).length(2).refine(rows=>rows[0]!==rows[1]),phaseId:id,boundaryLocation:z.literal('finish')}).strict()},
   get_plan_snapshot: { description: 'Read measured wall-path geometry, opening markers and room labels from the active or explicitly named host floor-plan view as SVG. At most 2000 visible elements. Not a rendered screenshot. No model changes or active-view switch.',
     schema: z.object({ sessionId: z.string().uuid(), viewId: id.optional() }).strict() },
   get_plan_image: { description: 'Export one selected host floor-plan view as native PNG visual evidence, bounded to 2048 pixels per dimension and 1.5 MB. Not exact geometry. Does not save the model or switch the active view.',
@@ -102,6 +104,14 @@ const evidence=z.object({coverage:z.string(),viewId:z.string().nullable(),cropAc
   coordinateFrame:z.literal('revit-internal-xy'),units:z.literal('mm'),pixelToModel:z.string(),lengthDisplayUnit:z.string()}).strict();
 export function validCommandResponse(tool: string, data: unknown): boolean {
   const identity = { documentId: z.string().uuid(), revision: z.number().int().nonnegative() };
+  const boundarySpan=z.object({boundaryElementId:id.nullable(),hostId:id.nullable(),fromMm:z.number().finite(),toMm:z.number().finite(),
+    side:z.enum(['left','right','center','unknown']),complete:z.boolean(),linkInstanceId:id.nullable(),linkedElementId:id.nullable(),linkLoaded:z.boolean().nullable()}).strict();
+  const boundaryRoom=z.object({id,levelId:id,phaseId:id,status:z.enum(['complete','partial','unsupported']),
+    lowerZMm:z.number().finite(),upperZMm:z.number().finite(),spans:z.array(boundarySpan).max(512)}).strict();
+  const boundaryHost=z.object({id,levelId:id,phaseId:id,curveKind:z.literal('Line'),start:pointReadback,end:pointReadback,
+    lowerZMm:z.number().finite(),upperZMm:z.number().finite(),complete:z.boolean()}).strict();
+  const boundaryOpening=z.object({id,hostId:id,fromMm:z.number().finite(),toMm:z.number().finite(),lowerZMm:z.number().finite(),
+    upperZMm:z.number().finite(),fromRoomId:id.nullable(),toRoomId:id.nullable(),complete:z.boolean()}).strict();
   const status = z.object({ receipt: receipt.nullable(), state: z.enum(['unknown', 'committed', 'rolled_back', 'failed', 'not_found']),
     sameDocument: z.boolean(), elements: z.array(z.unknown()).nullable(),
     deletedElements:z.array(z.object({id,missing:z.boolean()}).strict()).nullable().optional(), guidance: z.string() }).strict();
@@ -144,6 +154,13 @@ export function validCommandResponse(tool: string, data: unknown): boolean {
       warnings:z.array(z.object({failureDefinitionId:z.string().uuid(),severity:z.string().min(1).max(50),description:z.string().max(512),
         failingElementIds:z.array(id).max(20),additionalElementIds:z.array(id).max(20),elementIdsTruncated:z.boolean()}).strict()
         .refine(row=>row.failingElementIds.length+row.additionalElementIds.length<=20)).max(100),limitations:z.array(z.string())}).strict(),
+    get_room_boundaries:z.object({...identity,phaseId:id,defaultCreationPhaseId:id.nullable(),units:z.literal('mm'),
+      coordinateFrame:z.literal('revit-internal-xy'),boundaryLocation:z.literal('finish'),toleranceMm:z.number().finite().positive().max(2),
+      coverage:z.enum(['complete','partial','unsupported']),limitations:z.array(z.string()),rooms:z.array(boundaryRoom).length(2),
+      hosts:z.array(boundaryHost).max(256),openings:z.array(boundaryOpening).max(256)}).strict().superRefine((row,ctx)=>{
+        if(new Set(row.rooms.map(room=>room.id)).size!==2)ctx.addIssue({code:z.ZodIssueCode.custom,message:'Room identities must be unique.',path:['rooms']});
+        row.rooms.forEach((room,index)=>{if(room.phaseId!==row.phaseId)ctx.addIssue({code:z.ZodIssueCode.custom,message:'Room phase must match snapshot phase.',path:['rooms',index,'phaseId']});});
+      }),
     get_plan_snapshot: z.object({ ...identity, title: z.string(), viewId: z.string(), viewName: z.string(), units: z.literal('mm'), coordinateFrame: z.literal('revit-internal-xy'),
       evidence:evidence.optional(),svg: z.string().max(2000000), elementCount: z.number().int().max(2000), skippedWalls: z.number().int().nonnegative(), provenance: z.string() }).strict(),
     get_plan_image:z.object({...identity,viewId:z.string(),viewName:z.string(),viewType:z.literal('FloorPlan'),scale:z.number().int().positive(),

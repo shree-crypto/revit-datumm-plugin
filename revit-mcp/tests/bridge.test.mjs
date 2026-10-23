@@ -76,7 +76,7 @@ test('production C# bridge transport + actual MCP stdio (simulated Revit callbac
         env: { ...process.env, DATUMM_SESSION_DIR: directory }, stderr: 'inherit' }));
       try {
         assert.deepEqual((await mcp.listTools()).tools.map(tool => tool.name).sort(),
-          ['apply_change_set', 'approve_change_set', 'get_dimension_references', 'get_document_context', 'get_model_catalog', 'get_model_elements', 'get_model_inventory', 'get_model_quantities', 'get_model_views', 'get_model_warnings', 'get_native_capabilities', 'get_operation_status', 'get_plan_image', 'get_plan_snapshot', 'get_revit_health', 'get_selection', 'list_revit_sessions', 'preview_changes', 'show_model_elements']);
+          ['apply_change_set', 'approve_change_set', 'get_dimension_references', 'get_document_context', 'get_model_catalog', 'get_model_elements', 'get_model_inventory', 'get_model_quantities', 'get_model_views', 'get_model_warnings', 'get_native_capabilities', 'get_operation_status', 'get_plan_image', 'get_plan_snapshot', 'get_revit_health', 'get_room_boundaries', 'get_selection', 'list_revit_sessions', 'preview_changes', 'show_model_elements']);
         const result = await mcp.callTool({ name: 'get_document_context', arguments: { sessionId: descriptor.sessionId } });
         assert.equal(result.isError, false);
         assert.equal(JSON.parse(result.content[0].text).data.title, 'Simulated transport fixture');
@@ -180,6 +180,24 @@ test('G3 refuses warning reads unless the bridge advertises the exact read',asyn
       data:route==='health'?{capabilities:['get_native_capabilities']}:{operationSchemaVersion:4},error:null};
   };
   await assert.rejects(client.call('command',sessionId,{tool:'get_model_warnings',arguments:{}}),{code:'UPGRADE_REQUIRED'});
+  assert.deepEqual(routes,['health','get_native_capabilities']);
+});
+
+test('G4 refuses room-boundary reads unless the bridge advertises the exact read',async()=>{
+  const sessionId=randomUUID();
+  const descriptor={protocolVersion:'1',sessionId,processId:1234,baseUrl:'http://127.0.0.1:49152/',token:'a'.repeat(64),
+    pluginVersion:'0.2.0-alpha.8',revitVersion:'2026',startedAt:new Date().toISOString()};
+  const client=new BridgeClient('unused');
+  client.sessions=async()=>[{protocolVersion:'1',sessionId,processId:1234,pluginVersion:'0.2.0-alpha.8',revitVersion:'2026',startedAt:descriptor.startedAt}];
+  client.descriptors=async()=>[descriptor];
+  const routes=[];
+  client.request=async(_descriptor,route,_timeout,payload)=>{
+    routes.push(payload?.tool ?? route);
+    return {protocolVersion:'1',sessionId,operationId:randomUUID(),ok:true,
+      data:route==='health'?{capabilities:['get_native_capabilities']}:{operationSchemaVersion:4,supportedReads:['get_model_warnings']},error:null};
+  };
+  await assert.rejects(client.call('command',sessionId,{tool:'get_room_boundaries',arguments:{
+    roomIds:['room-a','room-b'],phaseId:'phase-existing',boundaryLocation:'finish'}}),{code:'UPGRADE_REQUIRED'});
   assert.deepEqual(routes,['health','get_native_capabilities']);
 });
 

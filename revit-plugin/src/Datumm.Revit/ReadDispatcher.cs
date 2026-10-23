@@ -39,7 +39,7 @@ public sealed class ReadDispatcher : IExternalEventHandler, IDisposable
     public void ApprovePending(UIApplication application) => _drafting.ApprovePending(application, this);
     public async Task<object> CommandAsync(string tool, JsonElement arguments, Guid requestId, CancellationToken cancellation)
     {
-        if (tool is not ("get_native_capabilities" or "get_dimension_references" or "get_model_elements" or "show_model_elements" or "get_model_inventory" or "get_model_views" or "get_model_quantities" or "get_model_warnings" or "get_plan_snapshot" or "get_plan_image" or "get_model_catalog" or "get_selection" or "preview_changes" or "approve_change_set" or "apply_change_set" or "get_operation_status"))
+        if (tool is not ("get_native_capabilities" or "get_dimension_references" or "get_model_elements" or "show_model_elements" or "get_model_inventory" or "get_model_views" or "get_model_quantities" or "get_model_warnings" or "get_room_boundaries" or "get_plan_snapshot" or "get_plan_image" or "get_model_catalog" or "get_selection" or "preview_changes" or "approve_change_set" or "apply_change_set" or "get_operation_status"))
             throw new BridgeException("UNKNOWN_TOOL", "Unsupported tool.");
         var completion = new TaskCompletionSource<object>(TaskCreationOptions.RunContinuationsAsynchronously);
         LinkedListNode<Work> node;

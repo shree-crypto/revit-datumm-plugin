@@ -58,3 +58,44 @@ test('P9 queries and view actions require bounded distinct IDs and explicit inte
   assert(validCommandResponse('show_model_elements',result));
   assert(!validCommandResponse('show_model_elements',{...result,modelChanged:true}));
 });
+
+test('G4 room boundary requests and phase-scoped evidence are exact and bounded',()=>{
+  const sessionId=randomUUID();
+  const documentId=randomUUID();
+  const request={sessionId,roomIds:['room-a','room-b'],phaseId:'phase-existing',boundaryLocation:'finish'};
+  assert(draftingTools.get_room_boundaries.schema.safeParse(request).success);
+  for(const patch of [
+    {roomIds:['room-a']},{roomIds:['room-a','room-a']},{roomIds:['room-a','room-b','room-c']},
+    {phaseId:undefined},{boundaryLocation:'center'},
+  ]) assert(!draftingTools.get_room_boundaries.schema.safeParse({...request,...patch}).success);
+
+  const span=(hostId,fromMm,toMm,side)=>({boundaryElementId:hostId,hostId,fromMm,toMm,side,complete:true,
+    linkInstanceId:null,linkedElementId:null,linkLoaded:null});
+  const room=(id,side)=>({id,levelId:'level-1',phaseId:request.phaseId,status:'complete',lowerZMm:0,upperZMm:3000,
+    spans:[span('wall-1',0,1800,side),span('wall-1',2600,5000,side)]});
+  const host={id:'wall-1',levelId:'level-1',phaseId:request.phaseId,curveKind:'Line',start:{x:0,y:0},end:{x:5000,y:0},
+    lowerZMm:0,upperZMm:3000,complete:true};
+  const opening={id:'door-1',hostId:'wall-1',fromMm:1900,toMm:2500,lowerZMm:0,upperZMm:2100,
+    fromRoomId:'room-a',toRoomId:'room-b',complete:true};
+  const snapshot={documentId,revision:7,phaseId:request.phaseId,defaultCreationPhaseId:request.phaseId,units:'mm',
+    coordinateFrame:'revit-internal-xy',boundaryLocation:'finish',toleranceMm:2,coverage:'complete',limitations:[],
+    rooms:[room('room-a','left'),room('room-b','right')],hosts:[host],openings:[opening]};
+  assert(validCommandResponse('get_room_boundaries',snapshot),'Opposing finish faces and disjoint spans remain explicit evidence');
+  assert(!validCommandResponse('get_room_boundaries',{...snapshot,boundaryLocation:'center'}));
+  assert(!validCommandResponse('get_room_boundaries',{...snapshot,toleranceMm:0}));
+  assert(!validCommandResponse('get_room_boundaries',{...snapshot,toleranceMm:2.001}));
+  assert(!validCommandResponse('get_room_boundaries',{...snapshot,rooms:[snapshot.rooms[0],snapshot.rooms[0]]}));
+  assert(!validCommandResponse('get_room_boundaries',{...snapshot,rooms:[snapshot.rooms[0],{...snapshot.rooms[1],upperZMm:undefined}]}));
+  assert(!validCommandResponse('get_room_boundaries',{...snapshot,rooms:[{...snapshot.rooms[0],spans:Array(513).fill(snapshot.rooms[0].spans[0])},snapshot.rooms[1]]}));
+  assert(!validCommandResponse('get_room_boundaries',{...snapshot,hosts:Array(257).fill(host)}));
+  assert(!validCommandResponse('get_room_boundaries',{...snapshot,openings:Array(257).fill(opening)}));
+  assert(!validCommandResponse('get_room_boundaries',{...snapshot,hosts:[{...host,curveKind:'Arc'}]}));
+
+  const linked={...snapshot,coverage:'partial',limitations:['Linked boundary geometry is unsupported.'],hosts:[],openings:[],
+    rooms:[{...snapshot.rooms[0],status:'partial',spans:[{boundaryElementId:'link-1',hostId:null,fromMm:0,toMm:1000,
+      side:'unknown',complete:false,linkInstanceId:'link-1',linkedElementId:'linked-wall',linkLoaded:true}]},snapshot.rooms[1]]};
+  assert(validCommandResponse('get_room_boundaries',linked),'Linked provenance is retained without inventing a local host');
+  const nonWall={...linked,rooms:[{...linked.rooms[0],spans:[{boundaryElementId:'floor-1',hostId:null,fromMm:0,toMm:0,
+    side:'unknown',complete:false,linkInstanceId:null,linkedElementId:null,linkLoaded:null}]},linked.rooms[1]]};
+  assert(validCommandResponse('get_room_boundaries',nonWall),'Non-wall boundaries remain explicit incomplete evidence');
+});
