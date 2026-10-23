@@ -60,7 +60,7 @@ export const draftingTools = {
     schema: z.object({sessionId:z.string().uuid(),categories:z.array(z.enum(['walls','floors','doors','windows','rooms'])).min(1).max(5).refine(items=>new Set(items).size===items.length),
       levelId:id.optional(),offset:z.number().int().nonnegative().optional(),limit:z.number().int().min(1).max(100).optional()}).strict()},
   get_model_warnings: { description: 'Read a deterministic bounded page of current host-document persistent warnings. Element identities and descriptions have explicit coverage limits; transaction receipt warnings are separate.',
-    schema:z.object({sessionId:z.string().uuid(),offset:z.number().int().nonnegative().optional(),limit:z.number().int().min(1).max(100).optional()}).strict()},
+    schema:z.object({sessionId:z.string().uuid(),offset:z.number().int().nonnegative().max(2147483647).optional(),limit:z.number().int().min(1).max(100).optional()}).strict()},
   get_plan_snapshot: { description: 'Read measured wall-path geometry, opening markers and room labels from the active or explicitly named host floor-plan view as SVG. At most 2000 visible elements. Not a rendered screenshot. No model changes or active-view switch.',
     schema: z.object({ sessionId: z.string().uuid(), viewId: id.optional() }).strict() },
   get_plan_image: { description: 'Export one selected host floor-plan view as native PNG visual evidence, bounded to 2048 pixels per dimension and 1.5 MB. Not exact geometry. Does not save the model or switch the active view.',

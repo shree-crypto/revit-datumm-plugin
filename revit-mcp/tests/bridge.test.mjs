@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 import { createInterface } from 'node:readline';
-import { mkdtemp, readFile, readdir, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -34,6 +34,7 @@ async function startHost(directory, port) {
 
 test('production C# bridge transport + actual MCP stdio (simulated Revit callback)', { timeout: 60000 }, async t => {
   const directory = await mkdtemp(join(tmpdir(), 'datumm-bridge-'));
+  t.after(()=>rm(directory,{recursive:true,force:true}));
   const host = await startHost(directory);
   const client = new BridgeClient(directory);
   const descriptorPath = join(directory, (await readdir(directory)).find(name => name.endsWith('.json')));
@@ -182,8 +183,9 @@ test('G3 refuses warning reads unless the bridge advertises the exact read',asyn
   assert.deepEqual(routes,['health','get_native_capabilities']);
 });
 
-test('C# geometry, hash and durable journal checks (no Revit API)', async () => {
+test('C# geometry, hash and durable journal checks (no Revit API)', async t => {
   const directory = await mkdtemp(join(tmpdir(), 'datumm-contracts-'));
+  t.after(()=>rm(directory,{recursive:true,force:true}));
   const child = spawn('dotnet', [hostDll, '--contracts', directory]);
   let output = '';
   child.stdout.on('data', b => output += b);

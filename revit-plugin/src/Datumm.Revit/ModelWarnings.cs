@@ -42,7 +42,7 @@ internal static class ModelWarnings
             limitations.Add("Some warning element identities could not be resolved to host UniqueIds; affected rows set elementIdsTruncated=true.");
         return new {
             documentId = dispatcher.Identity(doc), revision = dispatcher.Revision(doc), total = warnings.Length,
-            nextOffset = offset + limit < warnings.Length ? (int?)(offset + limit) : null,
+            nextOffset = offset < warnings.Length && warnings.Length - offset > limit ? (int?)(offset + limit) : null,
             warnings = warnings.Skip(offset).Take(limit).Select(warning => new {
                 failureDefinitionId = warning.FailureDefinitionId, severity = warning.Severity,
                 description = warning.Description, failingElementIds = warning.FailingElementIds,
@@ -65,9 +65,7 @@ internal static class ModelWarnings
         var unresolved = false;
         foreach (var elementId in elementIds)
         {
-            string? uniqueId = null;
-            try { uniqueId = doc.GetElement(elementId)?.UniqueId; }
-            catch { }
+            var uniqueId = doc.GetElement(elementId)?.UniqueId;
             if (string.IsNullOrWhiteSpace(uniqueId))
             {
                 unresolved = anyUnresolved = true;

@@ -54,6 +54,8 @@ test('G3 current warnings require bounded pages and validate explicit identity c
   const sessionId=randomUUID();
   assert.equal(draftingTools.get_model_warnings.schema.safeParse({sessionId}).success,true);
   assert.equal(draftingTools.get_model_warnings.schema.safeParse({sessionId,offset:0,limit:100}).success,true);
+  assert.equal(draftingTools.get_model_warnings.schema.safeParse({sessionId,offset:2147483647,limit:100}).success,true);
+  assert.equal(draftingTools.get_model_warnings.schema.safeParse({sessionId,offset:2147483648,limit:100}).success,false);
   assert.equal(draftingTools.get_model_warnings.schema.safeParse({sessionId,offset:-1}).success,false);
   assert.equal(draftingTools.get_model_warnings.schema.safeParse({sessionId,limit:101}).success,false);
 
@@ -63,6 +65,7 @@ test('G3 current warnings require bounded pages and validate explicit identity c
   const response={documentId,revision:7,total:2,nextOffset:null,warnings:[warning,{...warning}],
     limitations:['Host document persistent warnings only.']};
   assert.equal(validCommandResponse('get_model_warnings',response),true);
+  assert.equal(validCommandResponse('get_model_warnings',{...response,total:2,nextOffset:null,warnings:[]}),true);
   assert.equal(validCommandResponse('get_model_warnings',{...response,warnings:[{...warning,description:'x'.repeat(513)}]}),false);
   assert.equal(validCommandResponse('get_model_warnings',{...response,warnings:[{...warning,failingElementIds:['']}]}),false);
   assert.equal(validCommandResponse('get_model_warnings',{...response,warnings:[{...warning,
