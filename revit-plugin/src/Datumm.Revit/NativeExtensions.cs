@@ -43,8 +43,8 @@ internal static class NativeExtensions
                 throw Error("INVALID_OPERATION", "Arc length must exceed Revit's short-curve tolerance.");
             return arc;
         }
-        catch (BridgeException) { throw; }
-        catch (Exception) { throw Error("INVALID_OPERATION", "Arc points do not define a supported bounded circular wall."); }
+        catch (Autodesk.Revit.Exceptions.ArgumentsInconsistentException)
+        { throw Error("INVALID_OPERATION", "Arc points do not define a supported bounded circular wall."); }
     }
     public static ViewPlan Plan(Document doc, string? id, Level? level = null)
     {

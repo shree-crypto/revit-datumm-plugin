@@ -23,9 +23,11 @@ test('element query validates named categories, bounded paging and parameter req
     elements:[{element:{id:'native-wall'},parameters:[{name:'Comments',storageType:'String',value:'Partition'}]}],limitations:['Host only']};
   assert.equal(validCommandResponse('get_model_elements',page),true);
   const arcElement={...page.elements[0],element:{...page.elements[0].element,curveKind:'Arc',curve:{start:{x:0,y:0},end:{x:4000,y:0},lengthMm:5236,
-    center:{x:2000,y:-1333.333},radiusMm:2403.7,mid:{x:2000,y:1200}}}};
+    center:{x:2000,y:-1333.333},radiusMm:2403.7,mid:{x:2000,y:1200},normal:{x:0,y:0,z:1}}}};
   assert.equal(validCommandResponse('get_model_elements',{...page,elements:[arcElement]}),true);
   assert.equal(validCommandResponse('get_model_elements',{...page,elements:[{...arcElement,element:{...arcElement.element,curve:{...arcElement.element.curve,radiusMm:NaN}}}]}),false);
+  assert.equal(validCommandResponse('get_model_elements',{...page,elements:[{...arcElement,element:{...arcElement.element,curve:{...arcElement.element.curve,normal:undefined}}}]}),false);
+  assert.equal(validCommandResponse('get_model_elements',{...page,elements:[{...arcElement,element:{...arcElement.element,curve:{start:{x:0,y:0},end:{x:4000,y:0},lengthMm:5236}}}]}),false);
   assert.equal(validCommandResponse('get_model_elements',{...page,elements:[{...arcElement,element:{...arcElement.element,curve:{start:{x:0,y:0},end:{x:4000,y:0}}}}]}),true,
     'Legacy endpoint-only arc reads remain valid partial evidence');
   assert.equal(validCommandResponse('get_model_elements',{...page,elements:Array(101).fill(page.elements[0])}),false);

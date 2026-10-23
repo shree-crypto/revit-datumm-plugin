@@ -86,13 +86,14 @@ const deletion = z.object({ key, targetId:id, elements:z.array(z.object({nativeI
 const vector=z.object({x:z.number().finite(),y:z.number().finite(),z:z.number().finite()}).strict();
 const pointReadback=z.object({x:z.number().finite(),y:z.number().finite()}).strict();
 const curveReadback=z.object({start:pointReadback,end:pointReadback,lengthMm:z.number().finite().positive().optional(),center:pointReadback.nullable().optional(),
-  radiusMm:z.number().finite().positive().nullable().optional(),mid:pointReadback.nullable().optional(),normal:vector.nullable().optional()}).strict()
+  radiusMm:z.number().finite().positive().nullable().optional(),mid:pointReadback.nullable().optional(),normal:vector.nullable().optional()}).strict();
+const nativeElement=z.object({curveKind:z.string().nullable().optional(),curve:curveReadback.nullable().optional()}).passthrough()
   .superRefine((row,ctx)=>{
-    const analytical=row.center!=null||row.radiusMm!=null||row.mid!=null||row.normal!=null;
-    if(analytical && (row.lengthMm==null||row.center==null||row.radiusMm==null||row.mid==null))
-      ctx.addIssue({code:z.ZodIssueCode.custom,message:'Analytical arc readback must include length, center, radius and midpoint.'});
+    if(row.curveKind!=='Arc'||!row.curve)return;
+    const analytical=[row.curve.lengthMm,row.curve.center,row.curve.radiusMm,row.curve.mid,row.curve.normal];
+    if(analytical.some(value=>value!=null)&&analytical.some(value=>value==null))
+      ctx.addIssue({code:z.ZodIssueCode.custom,message:'Analytical arc readback must include length, center, radius, midpoint and normal.',path:['curve']});
   });
-const nativeElement=z.object({curveKind:z.string().nullable().optional(),curve:curveReadback.nullable().optional()}).passthrough();
 const evidence=z.object({coverage:z.string(),viewId:z.string().nullable(),cropActive:z.boolean().nullable(),
   crop:z.object({minMm:vector,maxMm:vector,originMm:vector,basisX:vector,basisY:vector,basisZ:vector}).strict().nullable(),
   coordinateFrame:z.literal('revit-internal-xy'),units:z.literal('mm'),pixelToModel:z.string(),lengthDisplayUnit:z.string()}).strict();

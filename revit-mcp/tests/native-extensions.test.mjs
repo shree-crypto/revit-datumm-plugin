@@ -2,11 +2,18 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {randomUUID} from 'node:crypto';
 import {createServer} from 'node:http';
-import {mkdtemp,writeFile,rm} from 'node:fs/promises';
+import {mkdtemp,readFile,writeFile,rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {BridgeClient} from '../dist/bridge.js';
 import {operation,draftingTools,validCommandResponse} from '../dist/drafting.js';
+
+test('wall curve normalizes only the documented Revit geometry-input exception',async()=>{
+  const source=await readFile(new URL('../../revit-plugin/src/Datumm.Revit/NativeExtensions.cs',import.meta.url),'utf8');
+  const wallCurve=source.slice(source.indexOf('internal static Curve WallCurve'),source.indexOf('public static ViewPlan Plan'));
+  assert.match(wallCurve,/catch \(Autodesk\.Revit\.Exceptions\.ArgumentsInconsistentException\)/);
+  assert.doesNotMatch(wallCurve,/catch \(Exception\)/);
+});
 
 test('M07 strict extension contracts bind explicit rotation, view and stable references',()=>{
   const furniture={kind:'family_instance',key:'desk',typeId:'type',point:{x:10,y:20},rotationDegrees:90};
