@@ -49,3 +49,24 @@ test('C3 response contracts preserve explicit unknown quantities and image prove
   assert.equal(validCommandResponse('get_plan_image',image),true);
   assert.equal(validCommandResponse('get_plan_image',{...image,width:4096}),false);
 });
+
+test('G3 current warnings require bounded pages and validate explicit identity coverage',()=>{
+  const sessionId=randomUUID();
+  assert.equal(draftingTools.get_model_warnings.schema.safeParse({sessionId}).success,true);
+  assert.equal(draftingTools.get_model_warnings.schema.safeParse({sessionId,offset:0,limit:100}).success,true);
+  assert.equal(draftingTools.get_model_warnings.schema.safeParse({sessionId,offset:-1}).success,false);
+  assert.equal(draftingTools.get_model_warnings.schema.safeParse({sessionId,limit:101}).success,false);
+
+  const documentId=randomUUID();
+  const warning={failureDefinitionId:randomUUID(),severity:'Warning',description:'Duplicate warning',
+    failingElementIds:['host-wall'],additionalElementIds:[],elementIdsTruncated:false};
+  const response={documentId,revision:7,total:2,nextOffset:null,warnings:[warning,{...warning}],
+    limitations:['Host document persistent warnings only.']};
+  assert.equal(validCommandResponse('get_model_warnings',response),true);
+  assert.equal(validCommandResponse('get_model_warnings',{...response,warnings:[{...warning,description:'x'.repeat(513)}]}),false);
+  assert.equal(validCommandResponse('get_model_warnings',{...response,warnings:[{...warning,failingElementIds:['']}]}),false);
+  assert.equal(validCommandResponse('get_model_warnings',{...response,warnings:[{...warning,
+    failingElementIds:Array.from({length:20},(_,index)=>`failing-${index}`),additionalElementIds:['overflow'],elementIdsTruncated:true}]}),false);
+  assert.equal(validCommandResponse('get_model_warnings',{...response,warnings:[{...warning,
+    failingElementIds:['resolved-wall'],additionalElementIds:[],elementIdsTruncated:true}]}),true);
+});

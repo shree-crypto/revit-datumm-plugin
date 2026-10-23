@@ -3,9 +3,10 @@ import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 import { createInterface } from 'node:readline';
-import { mkdir, mkdtemp, readFile, readdir, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, readdir, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 import { randomUUID } from 'node:crypto';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
@@ -32,9 +33,7 @@ async function startHost(directory, port) {
 }
 
 test('production C# bridge transport + actual MCP stdio (simulated Revit callback)', { timeout: 60000 }, async t => {
-  const parent = join(root, 'artifacts/test-runs');
-  await mkdir(parent, { recursive: true });
-  const directory = await mkdtemp(join(parent, 'bridge-'));
+  const directory = await mkdtemp(join(tmpdir(), 'datumm-bridge-'));
   const host = await startHost(directory);
   const client = new BridgeClient(directory);
   const descriptorPath = join(directory, (await readdir(directory)).find(name => name.endsWith('.json')));
@@ -76,7 +75,7 @@ test('production C# bridge transport + actual MCP stdio (simulated Revit callbac
         env: { ...process.env, DATUMM_SESSION_DIR: directory }, stderr: 'inherit' }));
       try {
         assert.deepEqual((await mcp.listTools()).tools.map(tool => tool.name).sort(),
-          ['apply_change_set', 'approve_change_set', 'get_dimension_references', 'get_document_context', 'get_model_catalog', 'get_model_elements', 'get_model_inventory', 'get_model_quantities', 'get_model_views', 'get_native_capabilities', 'get_operation_status', 'get_plan_image', 'get_plan_snapshot', 'get_revit_health', 'get_selection', 'list_revit_sessions', 'preview_changes', 'show_model_elements']);
+          ['apply_change_set', 'approve_change_set', 'get_dimension_references', 'get_document_context', 'get_model_catalog', 'get_model_elements', 'get_model_inventory', 'get_model_quantities', 'get_model_views', 'get_model_warnings', 'get_native_capabilities', 'get_operation_status', 'get_plan_image', 'get_plan_snapshot', 'get_revit_health', 'get_selection', 'list_revit_sessions', 'preview_changes', 'show_model_elements']);
         const result = await mcp.callTool({ name: 'get_document_context', arguments: { sessionId: descriptor.sessionId } });
         assert.equal(result.isError, false);
         assert.equal(JSON.parse(result.content[0].text).data.title, 'Simulated transport fixture');
@@ -166,10 +165,25 @@ test('production C# bridge transport + actual MCP stdio (simulated Revit callbac
   await assert.rejects(client.call('health'), { code: 'NO_SESSION' });
 });
 
+test('G3 refuses warning reads unless the bridge advertises the exact read',async()=>{
+  const sessionId=randomUUID();
+  const descriptor={protocolVersion:'1',sessionId,processId:1234,baseUrl:'http://127.0.0.1:49152/',token:'a'.repeat(64),
+    pluginVersion:'0.2.0-alpha.8',revitVersion:'2026',startedAt:new Date().toISOString()};
+  const client=new BridgeClient('unused');
+  client.sessions=async()=>[{protocolVersion:'1',sessionId,processId:1234,pluginVersion:'0.2.0-alpha.8',revitVersion:'2026',startedAt:descriptor.startedAt}];
+  client.descriptors=async()=>[descriptor];
+  const routes=[];
+  client.request=async(_descriptor,route,_timeout,payload)=>{
+    routes.push(payload?.tool ?? route);
+    return {protocolVersion:'1',sessionId,operationId:randomUUID(),ok:true,
+      data:route==='health'?{capabilities:['get_native_capabilities']}:{operationSchemaVersion:4},error:null};
+  };
+  await assert.rejects(client.call('command',sessionId,{tool:'get_model_warnings',arguments:{}}),{code:'UPGRADE_REQUIRED'});
+  assert.deepEqual(routes,['health','get_native_capabilities']);
+});
+
 test('C# geometry, hash and durable journal checks (no Revit API)', async () => {
-  const parent = join(root, 'artifacts/test-runs');
-  await mkdir(parent, { recursive: true });
-  const directory = await mkdtemp(join(parent, 'contracts-'));
+  const directory = await mkdtemp(join(tmpdir(), 'datumm-contracts-'));
   const child = spawn('dotnet', [hostDll, '--contracts', directory]);
   let output = '';
   child.stdout.on('data', b => output += b);

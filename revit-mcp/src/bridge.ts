@@ -89,7 +89,7 @@ export class BridgeClient {
         if (chunk.done) break;
         size += chunk.value.length;
         const commandTool = route === 'command' ? (payload as {tool:string})?.tool : '';
-        const responseLimit = ['get_plan_image','get_plan_snapshot','get_model_elements','get_operation_status','apply_change_set','preview_changes'].includes(commandTool) ? 2_100_000 : 131072;
+        const responseLimit = ['get_plan_image','get_plan_snapshot','get_model_elements','get_model_warnings','get_operation_status','apply_change_set','preview_changes'].includes(commandTool) ? 2_100_000 : 131072;
         if (size > responseLimit) {
           await reader.cancel();
           throw new BridgeError('INVALID_RESPONSE', 'Plugin response exceeded the limit.');
@@ -152,11 +152,12 @@ export class BridgeClient {
       }
       const arcContract=command.tool==='preview_changes'&&command.arguments?.operations?.some(op=>op.kind==='wall'&&op.arcMid!==undefined);
       const phaseContract=command.tool==='preview_changes'&&command.arguments?.phaseId!==undefined;
+      const warningContract=command.tool==='get_model_warnings';
       const extended = ['get_native_capabilities','get_dimension_references'].includes(command.tool) ||
         !!command.arguments?.viewId && command.tool === 'get_model_elements' ||
         !!command.arguments?.phaseId && command.tool === 'get_model_elements' ||
         command.tool === 'get_model_views' && command.arguments?.kind === 'room-color-schemes' ||
-        command.tool === 'preview_changes' && command.arguments?.operations?.some(op=>['dimension','family_instance','set_room_color_scheme'].includes(op.kind)) || arcContract || phaseContract;
+        command.tool === 'preview_changes' && command.arguments?.operations?.some(op=>['dimension','family_instance','set_room_color_scheme'].includes(op.kind)) || arcContract || phaseContract || warningContract;
       const roomColorContract = command.tool === 'get_model_views' && command.arguments?.kind === 'room-color-schemes' ||
         command.tool === 'preview_changes' && command.arguments?.operations?.some(op=>op.kind === 'set_room_color_scheme');
       if (roomColorContract && !extended) throw new BridgeError('UPGRADE_REQUIRED','Install the matching MCP and Revit bridge before using room color schemes.');
@@ -164,6 +165,11 @@ export class BridgeClient {
         const health = await this.request(descriptor,'health');
         if (!Array.isArray(health.data?.capabilities) || !health.data.capabilities.includes('get_native_capabilities'))
           throw new BridgeError('UPGRADE_REQUIRED','Install the matching M07 MCP, connector and Revit plugin before using these tools.');
+        if (warningContract) {
+          const manifest=await this.request(descriptor,'command',25000,{tool:'get_native_capabilities',arguments:{}});
+          if(!manifest.ok||!Array.isArray(manifest.data?.supportedReads)||!manifest.data.supportedReads.includes('get_model_warnings'))
+            throw new BridgeError('UPGRADE_REQUIRED','Installed plugin does not support the exact get_model_warnings read contract.');
+        }
         if (command.tool === 'preview_changes' || roomColorContract) {
           const manifest = await this.request(descriptor,'command',25000,{tool:'get_native_capabilities',arguments:{}});
           const version=manifest.data?.operationSchemaVersion;
