@@ -23,7 +23,7 @@ const client=new Client({name:'datumm-packaged-smoke',version:'1'});
 try{
  await client.connect(new StdioClientTransport({command:join(payload,'runtime','node.exe'),args:[join(payload,'revit-mcp','dist','index.js')],cwd:empty,
   env:{...process.env,PATH:join(process.env.SystemRoot,'System32'),NODE_PATH:'',DATUMM_SESSION_DIR:empty},stderr:'inherit'}));
- const names=(await client.listTools()).tools.map(t=>t.name).sort();assert.deepEqual(names,['apply_change_set','approve_change_set','get_dimension_references','get_document_context','get_model_catalog','get_model_elements','get_model_inventory','get_model_quantities','get_model_views','get_native_capabilities','get_operation_status','get_plan_image','get_plan_snapshot','get_revit_health','get_selection','list_revit_sessions','preview_changes','show_model_elements']);
+ const names=(await client.listTools()).tools.map(t=>t.name).sort();assert.deepEqual(names,['apply_change_set','approve_change_set','get_dimension_references','get_document_context','get_model_catalog','get_model_elements','get_model_inventory','get_model_quantities','get_model_views','get_model_warnings','get_native_capabilities','get_operation_status','get_plan_image','get_plan_snapshot','get_revit_health','get_room_boundaries','get_selection','list_revit_sessions','preview_changes','show_model_elements']);
  const listed=await client.callTool({name:'list_revit_sessions',arguments:{}});assert.deepEqual(JSON.parse(listed.content[0].text),[]);
  console.log(JSON.stringify({package:release.version,verifiedFiles:release.files.length,standaloneMcp:true,variableModulesLoad:true,generalProgramSearch:true,tools:names.length,developerRuntimeOnPath:false}));
 }finally{await client.close();}
