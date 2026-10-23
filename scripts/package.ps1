@@ -47,7 +47,7 @@ Copy-Tree (Join-Path $repo 'fixtures/3bhk') (Join-Path $stage 'fixtures/3bhk')
 Copy-Item (Join-Path $repo 'apps/connector/package.json') (Join-Path $stage 'apps/connector')
 Copy-Tree (Join-Path $repo 'revit-mcp/dist') (Join-Path $stage 'revit-mcp/dist')
 New-Item -ItemType Directory -Force -Path (Join-Path $stage 'contracts'),(Join-Path $stage 'runtime'),(Join-Path $stage 'plugin'),(Join-Path $stage 'licenses') | Out-Null
-foreach($name in @('phase1.schema.json','native-drafting.v2.schema.json','native-drafting.v3.schema.json','design-brief.v1.schema.json','design-brief.v2.schema.json','plan-graph.v1.schema.json','plan-graph.v2.schema.json','design-brief.v3.schema.json','plan-graph.v3.schema.json','plan-graph.v4.schema.json')){
+foreach($name in @('phase1.schema.json','native-drafting.v2.schema.json','native-drafting.v3.schema.json','native-drafting.v4.schema.json','design-brief.v1.schema.json','design-brief.v2.schema.json','plan-graph.v1.schema.json','plan-graph.v2.schema.json','design-brief.v3.schema.json','plan-graph.v3.schema.json','plan-graph.v4.schema.json')){
  Copy-Item (Join-Path $repo "contracts/$name") (Join-Path $stage 'contracts')
 }
 Copy-Item (Join-Path $repo 'revit-mcp/package.json') (Join-Path $stage 'revit-mcp')

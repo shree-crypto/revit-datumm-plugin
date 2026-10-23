@@ -18,6 +18,49 @@ test('M07 strict extension contracts bind explicit rotation, view and stable ref
   for(const edit of [{stableReferences:['same','same']},{stableReferences:['only']},{viewId:undefined},{code:'eval'}])
     assert(!operation.safeParse({...dimension,...edit}).success);
   assert(draftingTools.get_model_elements.schema.safeParse({sessionId:randomUUID(),categories:['walls'],viewId:'view',phaseId:'phase'}).success);
+  const wall={kind:'wall',key:'arc',typeId:'wall',start:{x:0,y:0},end:{x:4000,y:0},heightMm:3000};
+  assert(operation.safeParse({...wall,arcMid:{x:2000,y:1200}}).success);
+  for(const arcMid of [{x:0,y:0},{x:2000,y:0},{x:NaN,y:1200}]) assert(!operation.safeParse({...wall,arcMid}).success);
+  assert(!operation.safeParse({kind:'room',key:'room',name:'Room',point:{x:1,y:1},arcMid:{x:2,y:2}}).success);
+  const door={kind:'door',key:'door',typeId:'door',host:'wall',point:{x:2000,y:0},sillMm:0};
+  const phased={documentId:randomUUID(),expectedRevision:0,levelId:'level',units:'mm',coordinateFrame:'revit-internal-xy',title:'Door',phaseId:'phase',operations:[door]};
+  assert(draftingTools.preview_changes.schema.safeParse({sessionId:randomUUID(),...phased}).success);
+  assert(!draftingTools.preview_changes.schema.safeParse({sessionId:randomUUID(),...phased,operations:[wall]}).success);
+});
+
+test('arc wall dispatch requires operation schema 4 and advertised arc support',{timeout:15000},async()=>{
+  const sessionId=randomUUID(),documentId=randomUUID(),directory=await mkdtemp(join(tmpdir(),'datumm-arc-wall-'));
+  let operationSchemaVersion=3,wallCurveKinds=undefined,phaseBoundOperationKinds=undefined,dispatched=0;
+  const server=createServer(async(req,res)=>{
+    let data;
+    if(req.url==='/health')data={service:'datumm-revit',pluginVersion:'0.2.0-alpha.8',revitVersion:'simulated',processId:54,capabilities:['get_native_capabilities'],readOnly:false};
+    else{
+      let body='';for await(const chunk of req)body+=chunk;const request=JSON.parse(body);
+      if(request.tool==='get_native_capabilities')data={documentId,revision:3,schemaVersion:1,operationSchemaVersion,inspectionSchemaVersion:2,
+        minimumMcpVersion:'0.2.0-alpha.5',pluginVersion:'0.2.0-alpha.8',revitBuild:'simulated',operationKinds:['wall','door'],placementSupport:[],
+        ...(wallCurveKinds?{wallCurveKinds}:{}),...(phaseBoundOperationKinds?{phaseBoundOperationKinds}:{}),
+        limits:{operations:100,pageSize:100,dimensionReferences:8,imageBytes:1500000,imagePixels:2048},limitations:[]};
+      else{dispatched++;data={documentId,revision:3,proposalId:randomUUID(),approvalHash:'a'.repeat(64),expiresAt:new Date(Date.now()+60000).toISOString(),changes:request.arguments,deletions:[],approval:'Review wall'};}
+    }
+    res.setHeader('content-type','application/json');res.end(JSON.stringify({protocolVersion:'1',sessionId,operationId:req.headers['x-operation-id'],ok:true,data,error:null}));
+  });
+  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+  try{
+    await writeFile(join(directory,sessionId+'.json'),JSON.stringify({protocolVersion:'1',sessionId,processId:54,baseUrl:'http://127.0.0.1:'+server.address().port+'/',token:'d'.repeat(64),pluginVersion:'0.2.0-alpha.8',revitVersion:'simulated',startedAt:new Date().toISOString()}));
+    const client=new BridgeClient(directory),base={documentId,expectedRevision:3,levelId:'level',units:'mm',coordinateFrame:'revit-internal-xy',title:'Wall'};
+    const line={...base,operations:[{kind:'wall',key:'line',typeId:'wall',start:{x:0,y:0},end:{x:4000,y:0},heightMm:3000}]};
+    const arc={...base,operations:[{...line.operations[0],key:'arc',arcMid:{x:2000,y:1200}}]};
+    await client.call('command',sessionId,{tool:'preview_changes',arguments:line});assert.equal(dispatched,1);
+    await assert.rejects(client.call('command',sessionId,{tool:'preview_changes',arguments:arc}),error=>error.code==='UPGRADE_REQUIRED');assert.equal(dispatched,1);
+    operationSchemaVersion=4;
+    await assert.rejects(client.call('command',sessionId,{tool:'preview_changes',arguments:arc}),error=>error.code==='UPGRADE_REQUIRED');assert.equal(dispatched,1);
+    wallCurveKinds=['line','arc'];
+    await client.call('command',sessionId,{tool:'preview_changes',arguments:arc});assert.equal(dispatched,2);
+    const phasedDoor={...base,phaseId:'phase',operations:[{kind:'door',key:'door',typeId:'door',host:'wall',point:{x:2000,y:0},sillMm:0}]};
+    await assert.rejects(client.call('command',sessionId,{tool:'preview_changes',arguments:phasedDoor}),error=>error.code==='UPGRADE_REQUIRED');assert.equal(dispatched,2);
+    phaseBoundOperationKinds=['door'];
+    await client.call('command',sessionId,{tool:'preview_changes',arguments:phasedDoor});assert.equal(dispatched,3);
+  }finally{await new Promise(resolve=>server.close(resolve));await rm(directory,{recursive:true,force:true});}
 });
 
 test('P9 targeted query/show transport refuses legacy dispatch and preserves exact scope',{timeout:15000},async()=>{

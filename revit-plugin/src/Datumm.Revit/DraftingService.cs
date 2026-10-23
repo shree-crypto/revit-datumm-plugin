@@ -229,6 +229,12 @@ internal sealed class DraftingService
             throw Error("UNSUPPORTED_DOCUMENT", "A writable, non-workshared project outside edit mode is required.");
         changes.ValidateTarget(dispatcher.Identity(doc), dispatcher.Revision(doc));
         Get<Level>(doc, changes.LevelId);
+        if (changes.PhaseId != null)
+        {
+            var phase = Get<Phase>(doc, changes.PhaseId);
+            if (doc.ActiveView.get_Parameter(BuiltInParameter.VIEW_PHASE)?.AsElementId() != phase.Id)
+                throw Error("PHASE_CHANGED", "The active view phase changed; inspect and preview again.");
+        }
     }
     private static bool IsOpening(Element e) => e.Category?.Id.Value is (long)BuiltInCategory.OST_Doors or (long)BuiltInCategory.OST_Windows;
     private static bool IsFurniture(Element e) => e is FamilyInstance &&
@@ -399,6 +405,7 @@ internal sealed class DraftingService
                     NativeExtensions.Preflight(doc, op, Get<Level>(doc, changes.LevelId)); break;
                 case "wall":
                     if (Get<WallType>(doc, op.TypeId).Kind != WallKind.Basic) throw Error("INVALID_TYPE", "Use a basic wall type.");
+                    NativeExtensions.WallCurve(doc.Application, op, Get<Level>(doc, changes.LevelId));
                     walls.Add(op.Key); break;
                 case "floor": Get<FloorType>(doc, op.TypeId); break;
                 case "door": case "window":
@@ -647,7 +654,7 @@ internal sealed class DraftingService
                     {
                         case "dimension": case "family_instance":
                             element = NativeExtensions.Create(doc, op, level); break;
-                        case "wall": element = Wall.Create(doc, Line.CreateBound(At(op.Start!, level.ProjectElevation), At(op.End!, level.ProjectElevation)),
+                        case "wall": element = Wall.Create(doc, NativeExtensions.WallCurve(doc.Application, op, level),
                             Get<WallType>(doc, op.TypeId).Id, level.Id, Feet(op.HeightMm!.Value), 0, false, false); break;
                         case "floor":
                             var loop = new CurveLoop();
@@ -871,8 +878,7 @@ internal sealed class DraftingService
         roomNumber = e is Room numberedRoom ? numberedRoom.Number : null,
         heightMm = e is Wall wall && wall.get_Parameter(BuiltInParameter.WALL_USER_HEIGHT_PARAM) is {HasValue:true,StorageType:StorageType.Double} wallHeight ? (double?)Mm(wallHeight.AsDouble()) : null,
         floorBoundary = e is Floor floor ? FloorBoundary(floor) : null,
-        curve = e.Location is LocationCurve c ? new { start = new { x = Mm(c.Curve.GetEndPoint(0).X), y = Mm(c.Curve.GetEndPoint(0).Y) },
-            end = new { x = Mm(c.Curve.GetEndPoint(1).X), y = Mm(c.Curve.GetEndPoint(1).Y) } } : null,
+        curve = e.Location is LocationCurve c ? NativeExtensions.CurveReadback(c.Curve) : null,
         sillMm = e.get_Parameter(BuiltInParameter.INSTANCE_SILL_HEIGHT_PARAM) is { StorageType: StorageType.Double } s ? (double?)Mm(s.AsDouble()) : null,
          point = e is RoomTag positionedTag ? new { x = Mm(positionedTag.TagHeadPosition.X), y = Mm(positionedTag.TagHeadPosition.Y), z = Mm(positionedTag.TagHeadPosition.Z) } :
              e.Location is LocationPoint p ? new { x = Mm(p.Point.X), y = Mm(p.Point.Y), z = Mm(p.Point.Z) } : null,

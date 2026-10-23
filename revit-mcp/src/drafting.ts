@@ -12,8 +12,16 @@ const setRoomMetadata = z.union([
   z.object({ kind: z.literal('set_room_metadata'), key, elementId: id, number: roomMetadataText, name: roomMetadataText.optional() }).strict(),
 ]);
 const setRoomColorScheme = z.object({ kind: z.literal('set_room_color_scheme'), key, viewId: id, schemeId: id }).strict();
+const wall = z.object({ kind: z.literal('wall'), key, typeId: id, start: point, end: point, arcMid: point.optional(), heightMm: z.number().gt(100).max(20000) }).strict()
+  .superRefine((row,ctx)=>{
+    const distance=(a:{x:number;y:number},b:{x:number;y:number})=>Math.hypot(a.x-b.x,a.y-b.y);
+    if(distance(row.start,row.end)<10)ctx.addIssue({code:z.ZodIssueCode.custom,message:'Wall must be at least 10 mm long.'});
+    if(row.arcMid && (distance(row.start,row.arcMid)===0 || distance(row.end,row.arcMid)===0 ||
+      (row.end.x-row.start.x)*(row.arcMid.y-row.start.y)===(row.end.y-row.start.y)*(row.arcMid.x-row.start.x)))
+      ctx.addIssue({code:z.ZodIssueCode.custom,message:'Arc points must be distinct and non-collinear.'});
+  });
 export const operation = z.union([
-  z.object({ kind: z.literal('wall'), key, typeId: id, start: point, end: point, heightMm: z.number().gt(100).max(20000) }).strict(),
+  wall,
   z.object({ kind: z.literal('floor'), key, typeId: id, boundary: z.array(point).min(3).max(64) }).strict(),
   z.object({ kind: z.literal('door'), key, typeId: id, host: id, point, sillMm: z.number().min(0).max(10000) }).strict(),
   z.object({ kind: z.literal('window'), key, typeId: id, host: id, point, sillMm: z.number().min(0).max(10000) }).strict(),
@@ -31,7 +39,8 @@ export const operation = z.union([
 ]);
 export const changeSet = z.object({ documentId: z.string().uuid(), expectedRevision: z.number().int().nonnegative(),
   levelId: id, units: z.literal('mm'), coordinateFrame: z.literal('revit-internal-xy'), title: z.string().min(1).max(120),
-  operations: z.array(operation).min(1).max(100) }).strict();
+  phaseId:id.optional(),operations: z.array(operation).min(1).max(100) }).strict()
+  .refine(row=>!row.phaseId || row.operations.every(op=>op.kind==='door'),{message:'Phase-bound change sets support door-only batches.',path:['operations']});
 export const draftingTools = {
   get_native_capabilities: {description:'Read native operation schema, supported placements, build and bounded limits. Required before new operation dispatch. Optional mirrorProbe checks only the exact inspected root set for native eligibility; it does not mirror, qualify a plane, verify dimensions or perform rollback.',
     schema:z.object({sessionId:z.string().uuid(),mirrorProbe:z.object({documentId:z.string().uuid(),expectedRevision:z.number().int().nonnegative(),
@@ -75,6 +84,15 @@ const receipt = z.object({ operationId: z.string().uuid(), proposalHash: z.strin
   modifiedElementIds:z.array(z.string()).nullable().optional(),deletedElementIds:z.array(z.string()).nullable().optional() }).strict();
 const deletion = z.object({ key, targetId:id, elements:z.array(z.object({nativeId:z.number().int(),id,kind:z.enum(['wall','floor','door','window','room','room_tag','dimension','family_instance','nested_component']),name:z.string()}).strict()).min(1).max(64) }).strict();
 const vector=z.object({x:z.number().finite(),y:z.number().finite(),z:z.number().finite()}).strict();
+const pointReadback=z.object({x:z.number().finite(),y:z.number().finite()}).strict();
+const curveReadback=z.object({start:pointReadback,end:pointReadback,lengthMm:z.number().finite().positive().optional(),center:pointReadback.nullable().optional(),
+  radiusMm:z.number().finite().positive().nullable().optional(),mid:pointReadback.nullable().optional(),normal:vector.nullable().optional()}).strict()
+  .superRefine((row,ctx)=>{
+    const analytical=row.center!=null||row.radiusMm!=null||row.mid!=null||row.normal!=null;
+    if(analytical && (row.lengthMm==null||row.center==null||row.radiusMm==null||row.mid==null))
+      ctx.addIssue({code:z.ZodIssueCode.custom,message:'Analytical arc readback must include length, center, radius and midpoint.'});
+  });
+const nativeElement=z.object({curveKind:z.string().nullable().optional(),curve:curveReadback.nullable().optional()}).passthrough();
 const evidence=z.object({coverage:z.string(),viewId:z.string().nullable(),cropActive:z.boolean().nullable(),
   crop:z.object({minMm:vector,maxMm:vector,originMm:vector,basisX:vector,basisY:vector,basisZ:vector}).strict().nullable(),
   coordinateFrame:z.literal('revit-internal-xy'),units:z.literal('mm'),pixelToModel:z.string(),lengthDisplayUnit:z.string()}).strict();
@@ -84,14 +102,15 @@ export function validCommandResponse(tool: string, data: unknown): boolean {
     sameDocument: z.boolean(), elements: z.array(z.unknown()).nullable(),
     deletedElements:z.array(z.object({id,missing:z.boolean()}).strict()).nullable().optional(), guidance: z.string() }).strict();
   const schemas: Record<string, z.ZodType> = {
-    get_native_capabilities:z.object({...identity,schemaVersion:z.literal(1),operationSchemaVersion:z.union([z.literal(2),z.literal(3)]),inspectionSchemaVersion:z.literal(2).optional(),minimumMcpVersion:z.enum(['0.2.0-alpha.2','0.2.0-alpha.3','0.2.0-alpha.4','0.2.0-alpha.5']),
+    get_native_capabilities:z.object({...identity,schemaVersion:z.literal(1),operationSchemaVersion:z.union([z.literal(2),z.literal(3),z.literal(4)]),inspectionSchemaVersion:z.literal(2).optional(),minimumMcpVersion:z.enum(['0.2.0-alpha.2','0.2.0-alpha.3','0.2.0-alpha.4','0.2.0-alpha.5']),
       pluginVersion:z.string(),revitBuild:z.string(),operationKinds:z.array(z.string()).max(20),placementSupport:z.array(z.string()).max(10),
+      wallCurveKinds:z.array(z.enum(['line','arc'])).max(2).optional(),phaseBoundOperationKinds:z.array(z.literal('door')).max(1).optional(),
       roomTagPolicy:z.literal('explicit-reviewed-operations').optional(),limits:z.object({operations:z.literal(100),pageSize:z.literal(100),dimensionReferences:z.literal(8),imageBytes:z.literal(1500000),imagePixels:z.literal(2048)}).strict(),limitations:z.array(z.string()),
       mirrorProbe:z.object({...identity,levelId:id,viewId:id,elementIds,eligibilityOnly:z.literal(true),qualified:z.literal(false),modelChanged:z.literal(false),
         canMirrorElements:z.boolean(),reasons:z.array(z.string()).max(10),limitations:z.array(z.string()).min(1).max(10)}).strict().optional()}).strict(),
     get_dimension_references:z.object({...identity,viewId:id,evidence,references:z.array(z.object({elementId:id,stableReference:z.string().min(1).max(500),originMm:vector,normal:vector}).strict()).max(80),limitations:z.array(z.string())}).strict(),
     get_model_elements:z.object({...identity,units:z.literal('mm'),coordinateFrame:z.literal('revit-internal-xy'),categories:z.array(z.string()),levelId:z.string().nullable(),
-      evidence:evidence.optional(),phaseId:id.nullable().optional(),elementIds:elementIds.nullable().optional(),region:region.nullable().optional(),total:z.number().int().nonnegative(),nextOffset:z.number().int().nonnegative().nullable(),elements:z.array(z.object({element:z.unknown(),parameters:z.array(z.object({name:z.string(),storageType:z.string(),value:z.string().nullable()}).strict()).max(32)}).strict()).max(100),limitations:z.array(z.string())}).strict(),
+      evidence:evidence.optional(),phaseId:id.nullable().optional(),elementIds:elementIds.nullable().optional(),region:region.nullable().optional(),total:z.number().int().nonnegative(),nextOffset:z.number().int().nonnegative().nullable(),elements:z.array(z.object({element:nativeElement,parameters:z.array(z.object({name:z.string(),storageType:z.string(),value:z.string().nullable()}).strict()).max(32)}).strict()).max(100),limitations:z.array(z.string())}).strict(),
     show_model_elements:z.object({...identity,action:z.enum(['select','show']),elementIds,viewId:id,modelChanged:z.literal(false)}).strict(),
     get_model_inventory: z.object({ ...identity, title: z.string(), scope: z.enum(['document','level']), levelId: z.string().nullable(),
       counts: z.object({ walls: z.number().int().nonnegative(), floors: z.number().int().nonnegative(), doors: z.number().int().nonnegative(), windows: z.number().int().nonnegative(), rooms: z.number().int().nonnegative() }).strict(),

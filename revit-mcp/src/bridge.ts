@@ -145,16 +145,18 @@ export class BridgeClient {
     const descriptor = (await this.descriptors()).find(item => item.sessionId === session.sessionId);
     if (!descriptor) throw new BridgeError('NO_SESSION', 'The selected session disconnected.');
     if (route === 'command') {
-      const command = payload as {tool:string;arguments?:{kind?:string;operations?:{kind:string}[];viewId?:string;phaseId?:string;elementIds?:string[];region?:unknown}};
+      const command = payload as {tool:string;arguments?:{kind?:string;operations?:{kind:string;arcMid?:unknown}[];viewId?:string;phaseId?:string;elementIds?:string[];region?:unknown}};
       if(command.tool==='show_model_elements'||command.tool==='get_model_elements'&&(command.arguments?.elementIds||command.arguments?.region)){
         const manifest=await this.request(descriptor,'command',25000,{tool:'get_native_capabilities',arguments:{}});
         if(!manifest.ok||manifest.data?.inspectionSchemaVersion!==2)throw new BridgeError('UPGRADE_REQUIRED','Install the matching P9 Revit bridge before targeted queries or selection.');
       }
+      const arcContract=command.tool==='preview_changes'&&command.arguments?.operations?.some(op=>op.kind==='wall'&&op.arcMid!==undefined);
+      const phaseContract=command.tool==='preview_changes'&&command.arguments?.phaseId!==undefined;
       const extended = ['get_native_capabilities','get_dimension_references'].includes(command.tool) ||
         !!command.arguments?.viewId && command.tool === 'get_model_elements' ||
         !!command.arguments?.phaseId && command.tool === 'get_model_elements' ||
         command.tool === 'get_model_views' && command.arguments?.kind === 'room-color-schemes' ||
-        command.tool === 'preview_changes' && command.arguments?.operations?.some(op=>['dimension','family_instance','set_room_color_scheme'].includes(op.kind));
+        command.tool === 'preview_changes' && command.arguments?.operations?.some(op=>['dimension','family_instance','set_room_color_scheme'].includes(op.kind)) || arcContract || phaseContract;
       const roomColorContract = command.tool === 'get_model_views' && command.arguments?.kind === 'room-color-schemes' ||
         command.tool === 'preview_changes' && command.arguments?.operations?.some(op=>op.kind === 'set_room_color_scheme');
       if (roomColorContract && !extended) throw new BridgeError('UPGRADE_REQUIRED','Install the matching MCP and Revit bridge before using room color schemes.');
@@ -166,7 +168,9 @@ export class BridgeClient {
           const manifest = await this.request(descriptor,'command',25000,{tool:'get_native_capabilities',arguments:{}});
           const version=manifest.data?.operationSchemaVersion;
           const operations=command.tool === 'preview_changes' ? command.arguments?.operations : [];
-          if (!manifest.ok || ![2,3].includes(version as number) || roomColorContract && version !== 3 ||
+          if (!manifest.ok || ![2,3,4].includes(version as number) || roomColorContract && ![3,4].includes(version as number) ||
+            arcContract && (version !== 4 || !Array.isArray(manifest.data?.wallCurveKinds) || !['line','arc'].every(kind=>(manifest.data!.wallCurveKinds as string[]).includes(kind))) ||
+            phaseContract && (version !== 4 || !Array.isArray(manifest.data?.phaseBoundOperationKinds) || !(manifest.data!.phaseBoundOperationKinds as string[]).includes('door')) ||
             !Array.isArray(manifest.data?.operationKinds) ||
             roomColorContract && !(manifest.data!.operationKinds as string[]).includes('set_room_color_scheme') ||
             operations?.some(op=>!(manifest.data!.operationKinds as string[]).includes(op.kind)))

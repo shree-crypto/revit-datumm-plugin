@@ -21,6 +21,8 @@ public sealed class DraftOperation
     public string? Host { get; init; }
     public PointMm? Start { get; init; }
     public PointMm? End { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public PointMm? ArcMid { get; init; }
     public PointMm? Point { get; init; }
     public PointMm[]? Boundary { get; init; }
     public double? HeightMm { get; init; }
@@ -45,6 +47,8 @@ public sealed class ChangeSet
     public required string CoordinateFrame { get; init; }
     public required string Title { get; init; }
     public required DraftOperation[] Operations { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? PhaseId { get; init; }
 
     public void Validate()
     {
@@ -56,6 +60,8 @@ public sealed class ChangeSet
             throw new BridgeException("INVALID_CHANGE_SET", "Use a title up to 120 characters and 1–100 operations.");
         if (Operations.Any(op => op?.Kind == "set_room_color_scheme") && Operations.Any(op => op?.Kind != "set_room_color_scheme"))
             throw new BridgeException("UNSUPPORTED_OPERATION_BATCH", "Room color scheme assignments must be reviewed in a separate all-color batch.");
+        if (PhaseId != null && (string.IsNullOrWhiteSpace(PhaseId) || PhaseId.Length > 200 || Operations.Any(op => op?.Kind != "door")))
+            throw new BridgeException("UNSUPPORTED_OPERATION_BATCH", "A phase-bound change set must contain only doors and a current phase UniqueId.");
         var colorAssignments = Operations.Where(op => op?.Kind == "set_room_color_scheme").ToArray();
         if (colorAssignments.Select(op => op.ViewId).Distinct(StringComparer.Ordinal).Count() != colorAssignments.Length)
             throw new BridgeException("UNSUPPORTED_OPERATION_BATCH", "Assign a room color scheme only once per view in a reviewed batch.");
@@ -70,7 +76,8 @@ public sealed class ChangeSet
             Require(op.Kind == "dimension" || op.StableReferences == null, "Stable references are only supported for dimensions.");
             Require(op.Kind == "set_room_metadata" || op.Number == null, "Room number is only supported for room metadata edits.");
             Require(op.Kind == "set_room_color_scheme" || op.SchemeId == null, "Scheme ID is only supported for room color scheme assignments.");
-            foreach (var p in new[] { op.Start, op.End, op.Point }.Concat(op.Boundary ?? []))
+            Require(op.Kind == "wall" || op.ArcMid == null, "Arc midpoint is only supported for walls.");
+            foreach (var p in new[] { op.Start, op.End, op.ArcMid, op.Point }.Concat(op.Boundary ?? []))
                 if (p != null && (!double.IsFinite(p.X) || !double.IsFinite(p.Y) || Math.Abs(p.X) > 1000000 || Math.Abs(p.Y) > 1000000))
                     throw new BridgeException("INVALID_COORDINATES", "Coordinates must be finite and within 1 km of internal origin.");
             switch (op.Kind)
@@ -79,6 +86,14 @@ public sealed class ChangeSet
                     Require(op.Start != null && op.End != null && op.TypeId != null && op.HeightMm is > 100 and <= 20000,
                         "Wall requires endpoints, type and height 100–20000 mm.");
                     Require(Distance(op.Start!, op.End!) >= 10, "Wall must be at least 10 mm long.");
+                    if (op.ArcMid != null)
+                    {
+                        var start = op.Start!; var end = op.End!; var mid = op.ArcMid;
+                        Require(Distance(start, mid) > 0 && Distance(end, mid) > 0,
+                            "Arc midpoint must differ from both endpoints.");
+                        Require(Math.Abs((end.X-start.X)*(mid.Y-start.Y) -
+                            (end.Y-start.Y)*(mid.X-start.X)) > 0, "Arc points must not be collinear.");
+                    }
                     break;
                 case "floor":
                     Require(op.TypeId != null && op.Boundary is { Length: >= 3 and <= 64 }, "Floor requires a type and 3–64 polygon vertices.");

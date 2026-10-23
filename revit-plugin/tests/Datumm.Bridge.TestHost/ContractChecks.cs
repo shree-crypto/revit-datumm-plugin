@@ -33,8 +33,8 @@ internal static class ContractChecks
             33, DeletionOwnershipKind.Door, 31, 32, 33));
         Check(!Owned([Generic(34)], 35, DeletionOwnershipKind.Other, 34, 35));
         var points = new[] { new PointMm(0,0), new PointMm(4000,0), new PointMm(4000,3000), new PointMm(0,3000) };
-        ChangeSet Make(DraftOperation[] ops) => new() { DocumentId = "5fc469ef-5cc6-4bd9-a7dc-c5683f852067", ExpectedRevision = 0,
-            LevelId = "level-fixture", Units = "mm", CoordinateFrame = "revit-internal-xy", Title = "Fixture", Operations = ops };
+        ChangeSet Make(DraftOperation[] ops, string? phaseId = null) => new() { DocumentId = "5fc469ef-5cc6-4bd9-a7dc-c5683f852067", ExpectedRevision = 0,
+            LevelId = "level-fixture", Units = "mm", CoordinateFrame = "revit-internal-xy", Title = "Fixture", Operations = ops, PhaseId = phaseId };
         var valid = Make([new() { Kind = "floor", Key = "slab", TypeId = "floor-fixture", Boundary = points }]);
         valid.Validate();
         var roomName = Make([new() { Kind = "set_room_metadata", Key = "room-name", ElementId = "room-fixture", Name = "Bedroom 3" }]);
@@ -88,6 +88,21 @@ internal static class ContractChecks
         Check(valid.Hash() == roundtrip.Hash());
         Check(!JsonSerializer.Serialize(valid, Protocol.Json).Contains("\"number\":", StringComparison.Ordinal));
         Check(!JsonSerializer.Serialize(valid, Protocol.Json).Contains("schemeId", StringComparison.Ordinal));
+        var legacyLine = Make([new() { Kind = "wall", Key = "legacy-line", TypeId = "wall-fixture", Start = new(0,0), End = new(4000,0), HeightMm = 3000 }]);
+        Check(legacyLine.Hash() == "84e8896a949e6325f15616ed966a77b7f1a49bf3b14b0b060fb096caf4603dfc");
+        Check(!JsonSerializer.Serialize(legacyLine, Protocol.Json).Contains("arcMid", StringComparison.Ordinal));
+        Check(!JsonSerializer.Serialize(legacyLine, Protocol.Json).Contains("phaseId", StringComparison.Ordinal));
+        var arcWall = Make([new() { Kind = "wall", Key = "legacy-line", TypeId = "wall-fixture", Start = new(0,0), End = new(4000,0), ArcMid = new(2000,1200), HeightMm = 3000 }]);
+        arcWall.Validate();
+        Check(legacyLine.Hash() != arcWall.Hash());
+        var phasedDoor = Make([new() { Kind = "door", Key = "door", TypeId = "door-fixture", Host = "wall-fixture", Point = new(2000,0), SillMm = 0 }], "phase-fixture");
+        phasedDoor.Validate();
+        Check(phasedDoor.Hash() != Make(phasedDoor.Operations).Hash());
+        Reject(() => Make([new() { Kind = "wall", Key = "arc", TypeId = "wall-fixture", Start = new(0,0), End = new(4000,0), ArcMid = new(double.NaN,1200), HeightMm = 3000 }]).Validate(), "INVALID_COORDINATES");
+        Reject(() => Make([new() { Kind = "wall", Key = "arc", TypeId = "wall-fixture", Start = new(0,0), End = new(4000,0), ArcMid = new(0,0), HeightMm = 3000 }]).Validate(), "INVALID_OPERATION");
+        Reject(() => Make([new() { Kind = "wall", Key = "arc", TypeId = "wall-fixture", Start = new(0,0), End = new(4000,0), ArcMid = new(2000,0), HeightMm = 3000 }]).Validate(), "INVALID_OPERATION");
+        Reject(() => Make([new() { Kind = "room", Key = "room", Name = "Room", Point = new(1,1), ArcMid = new(2,2) }]).Validate(), "INVALID_OPERATION");
+        Reject(() => Make([new() { Kind = "wall", Key = "wall", TypeId = "wall-fixture", Start = new(0,0), End = new(4000,0), HeightMm = 3000 }], "phase-fixture").Validate(), "UNSUPPORTED_OPERATION_BATCH");
         Check(JsonSerializer.Serialize(roomColors, Protocol.Json).Contains("\"schemeId\":\"scheme-fixture\"", StringComparison.Ordinal));
         Check(valid.Hash() != Make([new() { Kind = "room", Key = "r", Name = "Room", Point = new(1,1) }]).Hash());
         Reject(() => ChangeSet.ValidatePolygon([new(0,0), new(4000,3000), new(4000,0), new(0,3000)]), "INVALID_OPERATION");

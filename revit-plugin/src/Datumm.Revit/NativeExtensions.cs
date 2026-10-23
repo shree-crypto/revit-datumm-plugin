@@ -17,15 +17,35 @@ internal static class NativeExtensions
         (id == null ? null : doc.GetElement(id)) as T ?? throw Error("INVALID_REFERENCE", $"Inspect an existing {typeof(T).Name} UniqueId.");
     public static object Capabilities(Document doc, ReadDispatcher dispatcher) => new {
         documentId = dispatcher.Identity(doc), revision = dispatcher.Revision(doc),
-        schemaVersion = 1, operationSchemaVersion = 3, inspectionSchemaVersion = 2, minimumMcpVersion = "0.2.0-alpha.5",
+        schemaVersion = 1, operationSchemaVersion = 4, inspectionSchemaVersion = 2, minimumMcpVersion = "0.2.0-alpha.5",
         pluginVersion = "0.2.0-alpha.8", revitBuild = doc.Application.VersionBuild,
         roomTagPolicy = "explicit-reviewed-operations",
+        wallCurveKinds = new[] { "line", "arc" },
+        phaseBoundOperationKinds = new[] { "door" },
         operationKinds = new[] { "wall", "floor", "door", "window", "room", "room_tag", "dimension", "family_instance", "move", "set_comments", "set_room_metadata", "set_room_color_scheme", "change_type", "delete" },
         placementSupport = new[] { "wall-hosted-openings", "non-hosted-OneLevelBased-furniture", "host-straight-wall-planar-side-face-linear-dimensions" },
         limits = new { operations = 100, pageSize = 100, dimensionReferences = 8, imageBytes = 1500000, imagePixels = 2048 },
         limitations = new[] { "Host document only. No linked references, arbitrary family loading, face/workplane furniture, chained dimension editing or native execution from pixels.",
             "Room color assignment selects an existing nonempty OST_Rooms color fill scheme for a host floor-plan view; entries and legends are not created or edited." }
     };
+    internal static Curve WallCurve(Autodesk.Revit.ApplicationServices.Application application, DraftOperation operation, Level level)
+    {
+        var start = At(operation.Start!, level.ProjectElevation);
+        var end = At(operation.End!, level.ProjectElevation);
+        if (operation.ArcMid == null) return Line.CreateBound(start, end);
+        var mid = At(operation.ArcMid, level.ProjectElevation);
+        if (start.DistanceTo(mid) <= application.ShortCurveTolerance || mid.DistanceTo(end) <= application.ShortCurveTolerance)
+            throw Error("INVALID_OPERATION", "Arc segments must exceed Revit's short-curve tolerance.");
+        try
+        {
+            var arc = Arc.Create(start, end, mid);
+            if (!double.IsFinite(arc.Length) || arc.Length <= application.ShortCurveTolerance)
+                throw Error("INVALID_OPERATION", "Arc length must exceed Revit's short-curve tolerance.");
+            return arc;
+        }
+        catch (BridgeException) { throw; }
+        catch (Exception) { throw Error("INVALID_OPERATION", "Arc points do not define a supported bounded circular wall."); }
+    }
     public static ViewPlan Plan(Document doc, string? id, Level? level = null)
     {
         var view = Get<ViewPlan>(doc, id);
@@ -257,6 +277,13 @@ internal static class NativeExtensions
                 !Near(Mm(curve.Curve.GetEndPoint(1).Z),elevation) || !Near(Size(e,BuiltInParameter.WALL_BASE_OFFSET),0) ||
                 e.get_BoundingBox(null) is not { } box || !Near(Mm(box.Max.Z),elevation+op.HeightMm!.Value))
                 throw Error("VERIFY_ELEVATION_FAILED", "Wall base/offset/top elevation differs from the exact level and height.");
+            var expected = WallCurve(e.Document.Application, op, level);
+            if (curve.Curve.GetType() != expected.GetType() || curve.Curve.GetEndPoint(0).DistanceTo(expected.GetEndPoint(0)) > Feet(2) ||
+                curve.Curve.GetEndPoint(1).DistanceTo(expected.GetEndPoint(1)) > Feet(2) || Math.Abs(Mm(curve.Curve.Length-expected.Length)) > 2)
+                throw Error("VERIFY_FAILED", "Wall curve kind, ordered endpoints or length differs from the proposal.");
+            if (expected is Arc expectedArc && (curve.Curve is not Arc actualArc || actualArc.Center.DistanceTo(expectedArc.Center) > Feet(2) ||
+                Math.Abs(Mm(actualArc.Radius-expectedArc.Radius)) > 2 || actualArc.Distance(At(op.ArcMid!, level.ProjectElevation)) > Feet(2)))
+                throw Error("VERIFY_FAILED", "Wall arc center, radius or requested interior point differs from the proposal.");
         }
         else if (op.Kind == "floor")
         {
@@ -294,5 +321,19 @@ internal static class NativeExtensions
             };
         }
         return e is Wall or Floor ? new { typeSizes = TypeSizes(e.Document.GetElement(e.GetTypeId())) } : null;
+    }
+    public static object CurveReadback(Curve curve)
+    {
+        var arc = curve as Arc;
+        var mid = arc?.Evaluate(0.5, true);
+        return new {
+            start = new { x = Mm(curve.GetEndPoint(0).X), y = Mm(curve.GetEndPoint(0).Y) },
+            end = new { x = Mm(curve.GetEndPoint(1).X), y = Mm(curve.GetEndPoint(1).Y) },
+            lengthMm = Mm(curve.Length),
+            center = arc == null ? null : new { x = Mm(arc.Center.X), y = Mm(arc.Center.Y) },
+            radiusMm = arc == null ? (double?)null : Mm(arc.Radius),
+            mid = mid == null ? null : new { x = Mm(mid.X), y = Mm(mid.Y) },
+            normal = arc == null ? null : Vector(arc.Normal)
+        };
     }
 }
