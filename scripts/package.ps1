@@ -5,7 +5,7 @@ $repo=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $release=Get-Content (Join-Path $repo 'packaging/release.json') -Raw | ConvertFrom-Json
 $nodeRoot=Join-Path $repo 'artifacts/toolchain/node-v24.21.0-win-x64'
 $node=Join-Path $nodeRoot 'node.exe'
-$compiler='C:/Program Files (x86)/Inno Setup 6/ISCC.exe'
+$compiler=if($env:DATUMM_ISCC){$env:DATUMM_ISCC}else{'C:/Program Files (x86)/Inno Setup 6/ISCC.exe'}
 $compilerHash='A7472A35BE9CD63DA59E54C2622A0D8B048AB2EC85382E2B2D47A5A79DBF9BEF'
 if((Get-FileHash $compiler -Algorithm SHA256).Hash -ne $compilerHash){throw 'Inno compiler differs from the recorded toolchain; review before updating the pin.'}
 if((& $node --version) -ne $release.nodeVersion){throw 'Node runtime version mismatch.'}
