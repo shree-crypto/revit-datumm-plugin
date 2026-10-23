@@ -1,6 +1,6 @@
 {
   "name": "@datumm/revit-mcp",
-  "version": "0.2.0-alpha.8",
+  "version": "0.2.0-alpha.9",
   "private": true,
   "description": "Local read-only MCP server for DATUMM Revit automation",
   "type": "module",

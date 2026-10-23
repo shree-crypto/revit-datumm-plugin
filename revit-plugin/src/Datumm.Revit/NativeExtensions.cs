@@ -18,7 +18,7 @@ internal static class NativeExtensions
     public static object Capabilities(Document doc, ReadDispatcher dispatcher) => new {
         documentId = dispatcher.Identity(doc), revision = dispatcher.Revision(doc),
         schemaVersion = 1, operationSchemaVersion = 4, inspectionSchemaVersion = 2, minimumMcpVersion = "0.2.0-alpha.5",
-        pluginVersion = "0.2.0-alpha.8", revitBuild = doc.Application.VersionBuild,
+        pluginVersion = "0.2.0-alpha.9", revitBuild = doc.Application.VersionBuild,
         roomTagPolicy = "explicit-reviewed-operations",
         wallCurveKinds = new[] { "line", "arc" },
         roomBoundaryCurveKinds = new[] { "line", "arc" },

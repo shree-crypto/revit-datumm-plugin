@@ -1,6 +1,6 @@
 {
   "name": "revit-datumm-plugin",
-  "version": "0.2.0-alpha.8",
+  "version": "0.2.0-alpha.9",
   "private": true,
   "description": "DATUMM Revit 2026 add-in, local MCP connector and Windows installer",
   "workspaces": [
