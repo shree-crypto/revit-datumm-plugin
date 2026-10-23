@@ -10,6 +10,10 @@ foreach ($required in @("FindInserts(true, true, true, true)", "InstanceVoidCutU
     "SolidSolidCutUtils.GetCuttingSolids", "OfClass(typeof(Opening))", "GetInstanceCutoutFromWall")) {
     if (-not $source.Contains($required)) { throw "missing native wall-cut audit: $required" }
 }
+$draftingSource = Get-Content -Raw (Join-Path $root "src\Datumm.Revit\DraftingService.cs")
+foreach ($required in @("segment.LinkElementId != ElementId.InvalidElementId", "boundary is RevitLinkInstance")) {
+    if (-not $draftingSource.Contains($required)) { throw "missing linked room-boundary refusal: $required" }
+}
 [Reflection.Assembly]::LoadFrom((Join-Path $output "Datumm.Bridge.dll")) | Out-Null
 $assembly = [Reflection.Assembly]::LoadFrom((Join-Path $output "Datumm.Revit.dll"))
 $type = $assembly.GetType("Datumm.Revit.SpatialInspection", $true)

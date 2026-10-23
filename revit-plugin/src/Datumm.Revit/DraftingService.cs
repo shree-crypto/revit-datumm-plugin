@@ -946,7 +946,8 @@ internal sealed class DraftingService
                 {
                     var boundary = room.Document.GetElement(segment.ElementId);
                     var curve = segment.GetCurve();
-                    if (boundary == null || curve is not (Line or Arc)) return ("incomplete", null);
+                    if (segment.LinkElementId != ElementId.InvalidElementId || boundary is RevitLinkInstance ||
+                        boundary == null || curve is not (Line or Arc)) return ("incomplete", null);
                     var start = curve.GetEndPoint(0);
                     var end = curve.GetEndPoint(1);
                     if (previous != null && previous.DistanceTo(start) > tolerance) return ("incomplete", null);
