@@ -91,13 +91,35 @@ const vector=z.object({x:z.number().finite(),y:z.number().finite(),z:z.number().
 const pointReadback=z.object({x:z.number().finite(),y:z.number().finite()}).strict();
 const curveReadback=z.object({start:pointReadback,end:pointReadback,lengthMm:z.number().finite().positive().optional(),center:pointReadback.nullable().optional(),
   radiusMm:z.number().finite().positive().nullable().optional(),mid:pointReadback.nullable().optional(),normal:vector.nullable().optional()}).strict();
-const nativeElement=z.object({curveKind:z.string().nullable().optional(),curve:curveReadback.nullable().optional()}).passthrough()
+const completeCurveEvidence=curveReadback.superRefine((curve,ctx)=>{
+  if(curve.lengthMm==null)ctx.addIssue({code:z.ZodIssueCode.custom,message:'Complete curve evidence requires length.',path:['lengthMm']});
+});
+const roomBoundaryCurve=z.object({boundaryElementId:id,curveKind:z.enum(['Line','Arc']),curve:completeCurveEvidence}).strict()
   .superRefine((row,ctx)=>{
-    if(row.curveKind!=='Arc'||!row.curve)return;
     const curve=row.curve;
-    const analyticalKeys=['lengthMm','center','radiusMm','mid','normal'] as const;
-    if(analyticalKeys.some(key=>key in curve)&&analyticalKeys.some(key=>curve[key]==null))
-      ctx.addIssue({code:z.ZodIssueCode.custom,message:'Analytical arc readback must include length, center, radius, midpoint and normal.',path:['curve']});
+    if(row.curveKind==='Arc'&&(curve.center==null||curve.radiusMm==null||curve.mid==null||curve.normal==null))
+      ctx.addIssue({code:z.ZodIssueCode.custom,message:'Room arc evidence requires center, radius, midpoint and normal.',path:['curve']});
+    if(row.curveKind==='Line'&&(['center','radiusMm','mid','normal'] as const).some(key=>!(key in curve)||curve[key]!==null))
+      ctx.addIssue({code:z.ZodIssueCode.custom,message:'Room line evidence requires explicit null analytical arc fields.',path:['curve']});
+  });
+const roomBoundaryCurves=z.array(z.array(roomBoundaryCurve).min(1).max(256)).min(1).max(16).superRefine((loops,ctx)=>{
+  if(loops.reduce((count,loop)=>count+loop.length,0)>256)
+    ctx.addIssue({code:z.ZodIssueCode.custom,message:'Room curve evidence exceeds 256 segments.'});
+});
+const nativeElement=z.object({curveKind:z.string().nullable().optional(),curve:curveReadback.nullable().optional(),
+  roomCurveBoundaryStatus:z.enum(['not_a_room','complete','incomplete','unavailable_or_unenclosed','too_large','unavailable']).optional(),
+  roomBoundaryCurves:roomBoundaryCurves.nullable().optional()}).passthrough()
+  .superRefine((row,ctx)=>{
+    if(row.curveKind==='Arc'&&row.curve){
+      const curve=row.curve;
+      const analyticalKeys=['lengthMm','center','radiusMm','mid','normal'] as const;
+      if(analyticalKeys.some(key=>key in curve)&&analyticalKeys.some(key=>curve[key]==null))
+        ctx.addIssue({code:z.ZodIssueCode.custom,message:'Analytical arc readback must include length, center, radius, midpoint and normal.',path:['curve']});
+    }
+    if(row.roomCurveBoundaryStatus==='complete'&&!row.roomBoundaryCurves)
+      ctx.addIssue({code:z.ZodIssueCode.custom,message:'Complete room curve boundaries require curve evidence.',path:['roomBoundaryCurves']});
+    if(row.roomCurveBoundaryStatus!=='complete'&&row.roomBoundaryCurves!=null)
+      ctx.addIssue({code:z.ZodIssueCode.custom,message:'Incomplete room curve boundaries cannot publish partial evidence.',path:['roomBoundaryCurves']});
   });
 const evidence=z.object({coverage:z.string(),viewId:z.string().nullable(),cropActive:z.boolean().nullable(),
   crop:z.object({minMm:vector,maxMm:vector,originMm:vector,basisX:vector,basisY:vector,basisZ:vector}).strict().nullable(),
@@ -119,10 +141,14 @@ export function validCommandResponse(tool: string, data: unknown): boolean {
     get_native_capabilities:z.object({...identity,schemaVersion:z.literal(1),operationSchemaVersion:z.union([z.literal(2),z.literal(3),z.literal(4)]),inspectionSchemaVersion:z.literal(2).optional(),minimumMcpVersion:z.enum(['0.2.0-alpha.2','0.2.0-alpha.3','0.2.0-alpha.4','0.2.0-alpha.5']),
       pluginVersion:z.string(),revitBuild:z.string(),operationKinds:z.array(z.string()).max(20),placementSupport:z.array(z.string()).max(10),
       wallCurveKinds:z.array(z.enum(['line','arc'])).max(2).optional(),phaseBoundOperationKinds:z.array(z.literal('door')).max(1).optional(),
+      roomBoundaryCurveKinds:z.tuple([z.literal('line'),z.literal('arc')]).optional(),
       supportedReads:z.array(z.string().min(1).max(100)).max(32).optional(),
       roomTagPolicy:z.literal('explicit-reviewed-operations').optional(),limits:z.object({operations:z.literal(100),pageSize:z.literal(100),dimensionReferences:z.literal(8),imageBytes:z.literal(1500000),imagePixels:z.literal(2048)}).strict(),limitations:z.array(z.string()),
       mirrorProbe:z.object({...identity,levelId:id,viewId:id,elementIds,eligibilityOnly:z.literal(true),qualified:z.literal(false),modelChanged:z.literal(false),
-        canMirrorElements:z.boolean(),reasons:z.array(z.string()).max(10),limitations:z.array(z.string()).min(1).max(10)}).strict().optional()}).strict(),
+        canMirrorElements:z.boolean(),reasons:z.array(z.string()).max(10),limitations:z.array(z.string()).min(1).max(10)}).strict().optional()}).strict().superRefine((caps,ctx)=>{
+          if(caps.roomBoundaryCurveKinds&&caps.operationSchemaVersion!==4)
+            ctx.addIssue({code:z.ZodIssueCode.custom,message:'Room boundary curve support requires operation schema 4.',path:['roomBoundaryCurveKinds']});
+        }),
     get_dimension_references:z.object({...identity,viewId:id,evidence,references:z.array(z.object({elementId:id,stableReference:z.string().min(1).max(500),originMm:vector,normal:vector}).strict()).max(80),limitations:z.array(z.string())}).strict(),
     get_model_elements:z.object({...identity,units:z.literal('mm'),coordinateFrame:z.literal('revit-internal-xy'),categories:z.array(z.string()),levelId:z.string().nullable(),
       evidence:evidence.optional(),phaseId:id.nullable().optional(),elementIds:elementIds.nullable().optional(),region:region.nullable().optional(),total:z.number().int().nonnegative(),nextOffset:z.number().int().nonnegative().nullable(),elements:z.array(z.object({element:nativeElement,parameters:z.array(z.object({name:z.string(),storageType:z.string(),value:z.string().nullable()}).strict()).max(32)}).strict()).max(100),limitations:z.array(z.string())}).strict(),

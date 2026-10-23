@@ -21,6 +21,7 @@ internal static class NativeExtensions
         pluginVersion = "0.2.0-alpha.8", revitBuild = doc.Application.VersionBuild,
         roomTagPolicy = "explicit-reviewed-operations",
         wallCurveKinds = new[] { "line", "arc" },
+        roomBoundaryCurveKinds = new[] { "line", "arc" },
         phaseBoundOperationKinds = new[] { "door" },
         operationKinds = new[] { "wall", "floor", "door", "window", "room", "room_tag", "dimension", "family_instance", "move", "set_comments", "set_room_metadata", "set_room_color_scheme", "change_type", "delete" },
         placementSupport = new[] { "wall-hosted-openings", "non-hosted-OneLevelBased-furniture", "host-straight-wall-planar-side-face-linear-dimensions" },
@@ -322,7 +323,7 @@ internal static class NativeExtensions
         }
         return e is Wall or Floor ? new { typeSizes = TypeSizes(e.Document.GetElement(e.GetTypeId())) } : null;
     }
-    public static object CurveReadback(Curve curve)
+    internal static object CurveEvidence(Curve curve)
     {
         var arc = curve as Arc;
         var mid = arc?.Evaluate(0.5, true);

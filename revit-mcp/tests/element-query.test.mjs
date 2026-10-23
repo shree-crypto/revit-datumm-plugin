@@ -18,6 +18,16 @@ test('element query validates named categories, bounded paging and parameter req
     operations:[{...deletion.operations[0],force:true}]}).success,false);
   for(const extra of [{categories:['anything']},{limit:101},{parameterNames:Array(9).fill('Comments')},{code:'eval'}])
     assert.equal(draftingTools.get_model_elements.schema.safeParse({...args,...extra}).success,false);
+  const capabilities={documentId:randomUUID(),revision:1,schemaVersion:1,operationSchemaVersion:4,inspectionSchemaVersion:2,
+    minimumMcpVersion:'0.2.0-alpha.5',pluginVersion:'0.2.0-alpha.8',revitBuild:'2026',roomTagPolicy:'explicit-reviewed-operations',
+    wallCurveKinds:['line','arc'],roomBoundaryCurveKinds:['line','arc'],phaseBoundOperationKinds:['door'],operationKinds:['wall','room'],
+    placementSupport:[],limits:{operations:100,pageSize:100,dimensionReferences:8,imageBytes:1500000,imagePixels:2048},limitations:[]};
+  assert(validCommandResponse('get_native_capabilities',capabilities));
+  for(const roomBoundaryCurveKinds of [['arc','line'],['line'],['line','arc','arc']])
+    assert(!validCommandResponse('get_native_capabilities',{...capabilities,roomBoundaryCurveKinds}));
+  assert(!validCommandResponse('get_native_capabilities',{...capabilities,operationSchemaVersion:3}));
+  const {roomBoundaryCurveKinds:ignoredRoomCurves,...legacyCapabilities}=capabilities;
+  assert(validCommandResponse('get_native_capabilities',{...legacyCapabilities,operationSchemaVersion:3}));
   const page={documentId:randomUUID(),revision:1,units:'mm',coordinateFrame:'revit-internal-xy',
     categories:['walls'],levelId:null,total:1,nextOffset:null,
     elements:[{element:{id:'native-wall'},parameters:[{name:'Comments',storageType:'String',value:'Partition'}]}],limitations:['Host only']};
@@ -34,6 +44,24 @@ test('element query validates named categories, bounded paging and parameter req
     'Mixed explicit null analytical fields are incomplete arc evidence');
   assert.equal(validCommandResponse('get_model_elements',{...page,elements:[{...arcElement,element:{...arcElement.element,curve:{start:{x:0,y:0},end:{x:4000,y:0}}}}]}),true,
     'Legacy endpoint-only arc reads remain valid partial evidence');
+  const roomArc=(start,end,mid,normal={x:0,y:0,z:1})=>({boundaryElementId:'wall-1',curveKind:'Arc',curve:{start,end,lengthMm:9424.77796076938,
+    center:{x:0,y:0},radiusMm:3000,mid,normal}});
+  const roomLine={boundaryElementId:'wall-1',curveKind:'Line',curve:{start:{x:0,y:0},end:{x:1000,y:0},lengthMm:1000,
+    center:null,radiusMm:null,mid:null,normal:null}};
+  const roomElement={...page.elements[0],element:{...page.elements[0].element,elementKind:'room',roomCurveBoundaryStatus:'complete',
+    roomBoundaryCurves:[[roomArc({x:3000,y:0},{x:-3000,y:0},{x:0,y:3000}),
+      roomArc({x:-3000,y:0},{x:3000,y:0},{x:0,y:-3000},{x:0,y:0,z:-1})]]}};
+  assert(validCommandResponse('get_model_elements',{...page,elements:[roomElement]}),'Complete room arcs retain analytical evidence and traversal direction');
+  assert(!validCommandResponse('get_model_elements',{...page,elements:[{...roomElement,element:{...roomElement.element,
+    roomBoundaryCurves:[[roomArc({x:3000,y:0},{x:-3000,y:0},{x:0,y:3000}),
+      {...roomArc({x:-3000,y:0},{x:3000,y:0},{x:0,y:-3000}),curve:{...roomArc({x:-3000,y:0},{x:3000,y:0},{x:0,y:-3000}).curve,normal:undefined}}]]}}]}));
+  assert(!validCommandResponse('get_model_elements',{...page,elements:[{...roomElement,element:{...roomElement.element,roomBoundaryCurves:null}}]}));
+  assert(!validCommandResponse('get_model_elements',{...page,elements:[{...roomElement,element:{...roomElement.element,roomCurveBoundaryStatus:'incomplete'}}]}));
+  assert(validCommandResponse('get_model_elements',{...page,elements:[{...roomElement,element:{...roomElement.element,roomBoundaryCurves:[[roomLine]]}}]}));
+  assert(!validCommandResponse('get_model_elements',{...page,elements:[{...roomElement,element:{...roomElement.element,
+    roomBoundaryCurves:[[{...roomLine,curve:{start:roomLine.curve.start,end:roomLine.curve.end,lengthMm:1000}}]]}}]}));
+  assert(!validCommandResponse('get_model_elements',{...page,elements:[{...roomElement,element:{...roomElement.element,
+    roomBoundaryCurves:Array(16).fill(Array(17).fill(roomLine))}}]}));
   assert.equal(validCommandResponse('get_model_elements',{...page,elements:Array(101).fill(page.elements[0])}),false);
   const closure={key:'remove',targetId:'wall-1',elements:[{nativeId:42,id:'wall-1',kind:'wall',name:'Partition'},
     {nativeId:43,id:'door-1',kind:'door',name:'Access'}]};

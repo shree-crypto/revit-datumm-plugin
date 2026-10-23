@@ -850,6 +850,7 @@ internal sealed class DraftingService
     {
         var relatedRooms = DoorWindowRooms(e);
         var roomBoundary = e is Room boundedRoom ? RoomBoundary(boundedRoom) : ("not_a_room", (object[]?)null);
+        var roomCurveBoundary = e is Room curvedRoom ? RoomCurveBoundary(curvedRoom) : ("not_a_room", (object[]?)null);
         var planView = e as ViewPlan;
         var roomScheme = planView is { IsTemplate: false, ViewType: ViewType.FloorPlan }
             ? e.Document.GetElement(planView.GetColorFillSchemeId(new ElementId(BuiltInCategory.OST_Rooms))) as ColorFillScheme
@@ -881,13 +882,15 @@ internal sealed class DraftingService
         demolishedPhaseId = e.Document.GetElement(e.DemolishedPhaseId)?.UniqueId,
         roomBoundaryStatus = roomBoundary.Item1,
         roomBoundaryLoops = roomBoundary.Item2,
+        roomCurveBoundaryStatus = roomCurveBoundary.Item1,
+        roomBoundaryCurves = roomCurveBoundary.Item2,
         areaM2 = e is Room r ? (double?)UnitUtils.ConvertFromInternalUnits(r.Area, UnitTypeId.SquareMeters) :
             e is Floor && e.get_Parameter(BuiltInParameter.HOST_AREA_COMPUTED) is { StorageType: StorageType.Double } floorArea
                 ? (double?)UnitUtils.ConvertFromInternalUnits(floorArea.AsDouble(),UnitTypeId.SquareMeters) : null,
         roomNumber = e is Room numberedRoom ? numberedRoom.Number : null,
         heightMm = e is Wall wall && wall.get_Parameter(BuiltInParameter.WALL_USER_HEIGHT_PARAM) is {HasValue:true,StorageType:StorageType.Double} wallHeight ? (double?)Mm(wallHeight.AsDouble()) : null,
         floorBoundary = e is Floor floor ? FloorBoundary(floor) : null,
-        curve = e.Location is LocationCurve c ? NativeExtensions.CurveReadback(c.Curve) : null,
+        curve = e.Location is LocationCurve c ? NativeExtensions.CurveEvidence(c.Curve) : null,
         sillMm = e.get_Parameter(BuiltInParameter.INSTANCE_SILL_HEIGHT_PARAM) is { StorageType: StorageType.Double } s ? (double?)Mm(s.AsDouble()) : null,
          point = e is RoomTag positionedTag ? new { x = Mm(positionedTag.TagHeadPosition.X), y = Mm(positionedTag.TagHeadPosition.Y), z = Mm(positionedTag.TagHeadPosition.Z) } :
              e.Location is LocationPoint p ? new { x = Mm(p.Point.X), y = Mm(p.Point.Y), z = Mm(p.Point.Z) } : null,
@@ -915,6 +918,53 @@ internal sealed class DraftingService
                 result.Add(segments.ToArray());
             }
             return ("complete_host_linear", result.ToArray());
+        }
+        catch (Autodesk.Revit.Exceptions.InvalidOperationException)
+        {
+            return ("unavailable", null);
+        }
+    }
+    private static (string Status, object[]? Loops) RoomCurveBoundary(Room room)
+    {
+        try
+        {
+            var loops = room.GetBoundarySegments(new SpatialElementBoundaryOptions());
+            if (loops == null) return ("unavailable_or_unenclosed", null);
+            if (loops.Count > 16 || loops.Sum(loop => loop.Count) > 256)
+                return ("too_large", null);
+            if (loops.Count == 0) return ("incomplete", null);
+            var result = new List<object>();
+            double? planeZ = null;
+            var tolerance = UnitUtils.ConvertToInternalUnits(2, UnitTypeId.Millimeters);
+            foreach (var loop in loops)
+            {
+                if (loop.Count == 0) return ("incomplete", null);
+                var segments = new List<object>();
+                XYZ? first = null;
+                XYZ? previous = null;
+                foreach (var segment in loop)
+                {
+                    var boundary = room.Document.GetElement(segment.ElementId);
+                    var curve = segment.GetCurve();
+                    if (boundary == null || curve is not (Line or Arc)) return ("incomplete", null);
+                    var start = curve.GetEndPoint(0);
+                    var end = curve.GetEndPoint(1);
+                    if (previous != null && previous.DistanceTo(start) > tolerance) return ("incomplete", null);
+                    first ??= start;
+                    previous = end;
+                    var points = curve is Arc arc
+                        ? new[] { start, arc.Evaluate(0.5, true), end }
+                        : new[] { start, end };
+                    planeZ ??= points[0].Z;
+                    if (points.Any(point => Math.Abs(point.Z - planeZ.Value) > tolerance))
+                        return ("incomplete", null);
+                    segments.Add(new { boundaryElementId = boundary.UniqueId, curveKind = curve.GetType().Name,
+                        curve = NativeExtensions.CurveEvidence(curve) });
+                }
+                if (previous!.DistanceTo(first!) > tolerance) return ("incomplete", null);
+                result.Add(segments.ToArray());
+            }
+            return ("complete", result.ToArray());
         }
         catch (Autodesk.Revit.Exceptions.InvalidOperationException)
         {
