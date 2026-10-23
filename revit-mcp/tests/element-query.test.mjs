@@ -28,6 +28,10 @@ test('element query validates named categories, bounded paging and parameter req
   assert.equal(validCommandResponse('get_model_elements',{...page,elements:[{...arcElement,element:{...arcElement.element,curve:{...arcElement.element.curve,radiusMm:NaN}}}]}),false);
   assert.equal(validCommandResponse('get_model_elements',{...page,elements:[{...arcElement,element:{...arcElement.element,curve:{...arcElement.element.curve,normal:undefined}}}]}),false);
   assert.equal(validCommandResponse('get_model_elements',{...page,elements:[{...arcElement,element:{...arcElement.element,curve:{start:{x:0,y:0},end:{x:4000,y:0},lengthMm:5236}}}]}),false);
+  assert.equal(validCommandResponse('get_model_elements',{...page,elements:[{...arcElement,element:{...arcElement.element,curve:{start:{x:0,y:0},end:{x:4000,y:0},center:null}}}]}),false,
+    'Explicit null analytical fields are incomplete arc evidence');
+  assert.equal(validCommandResponse('get_model_elements',{...page,elements:[{...arcElement,element:{...arcElement.element,curve:{start:{x:0,y:0},end:{x:4000,y:0},center:null,normal:null}}}]}),false,
+    'Mixed explicit null analytical fields are incomplete arc evidence');
   assert.equal(validCommandResponse('get_model_elements',{...page,elements:[{...arcElement,element:{...arcElement.element,curve:{start:{x:0,y:0},end:{x:4000,y:0}}}}]}),true,
     'Legacy endpoint-only arc reads remain valid partial evidence');
   assert.equal(validCommandResponse('get_model_elements',{...page,elements:Array(101).fill(page.elements[0])}),false);

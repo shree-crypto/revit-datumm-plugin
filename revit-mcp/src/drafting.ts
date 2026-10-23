@@ -90,8 +90,9 @@ const curveReadback=z.object({start:pointReadback,end:pointReadback,lengthMm:z.n
 const nativeElement=z.object({curveKind:z.string().nullable().optional(),curve:curveReadback.nullable().optional()}).passthrough()
   .superRefine((row,ctx)=>{
     if(row.curveKind!=='Arc'||!row.curve)return;
-    const analytical=[row.curve.lengthMm,row.curve.center,row.curve.radiusMm,row.curve.mid,row.curve.normal];
-    if(analytical.some(value=>value!=null)&&analytical.some(value=>value==null))
+    const curve=row.curve;
+    const analyticalKeys=['lengthMm','center','radiusMm','mid','normal'] as const;
+    if(analyticalKeys.some(key=>key in curve)&&analyticalKeys.some(key=>curve[key]==null))
       ctx.addIssue({code:z.ZodIssueCode.custom,message:'Analytical arc readback must include length, center, radius, midpoint and normal.',path:['curve']});
   });
 const evidence=z.object({coverage:z.string(),viewId:z.string().nullable(),cropActive:z.boolean().nullable(),
