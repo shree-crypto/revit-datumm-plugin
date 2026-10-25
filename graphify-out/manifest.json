@@ -1,0 +1,674 @@
+{
+  "apps/connector/package.json": {
+    "mtime": 1792749267.2026298,
+    "seen": 1792924467.758688,
+    "ast_hash": "44ae521f98dd2429a6097ccc41e9d018",
+    "semantic_hash": ""
+  },
+  "apps/connector/src/connection-lifecycle.mjs": {
+    "mtime": 1792749267.2026298,
+    "seen": 1792924467.7586954,
+    "ast_hash": "ea8087b6936e5e73e7849216e9f82a4c",
+    "semantic_hash": ""
+  },
+  "apps/connector/src/index.mjs": {
+    "mtime": 1792749267.2026298,
+    "seen": 1792924467.7586982,
+    "ast_hash": "9f0a7dc0168a63999169e6615f37c3db",
+    "semantic_hash": ""
+  },
+  "apps/connector/src/tool-result.mjs": {
+    "mtime": 1792749267.2026298,
+    "seen": 1792924467.7586994,
+    "ast_hash": "132f46f781921904c322b289aa2dbf5a",
+    "semantic_hash": ""
+  },
+  "apps/connector/tests/connection-lifecycle.test.mjs": {
+    "mtime": 1792749267.2026298,
+    "seen": 1792924467.7587008,
+    "ast_hash": "9ea42579f694c9f896e2ba6c91a3f7b6",
+    "semantic_hash": ""
+  },
+  "apps/connector/tests/tool-result.test.mjs": {
+    "mtime": 1792749267.2026298,
+    "seen": 1792924467.7587016,
+    "ast_hash": "38f26a09daa0118c51f29062b38255af",
+    "semantic_hash": ""
+  },
+  "contracts/brief-extraction.v2.schema.json": {
+    "mtime": 1792749267.2026298,
+    "seen": 1792924467.7587025,
+    "ast_hash": "e9ab0a1c670610a0b0f4c1732690f1e0",
+    "semantic_hash": ""
+  },
+  "contracts/design-brief.v1.schema.json": {
+    "mtime": 1792749267.2026298,
+    "seen": 1792924467.7587035,
+    "ast_hash": "e19c4bdb475a3df7d854417223d5e1fd",
+    "semantic_hash": ""
+  },
+  "contracts/design-brief.v2.schema.json": {
+    "mtime": 1792749267.2026298,
+    "seen": 1792924467.7587044,
+    "ast_hash": "99a90da923c6a54e0497157035b64f1f",
+    "semantic_hash": ""
+  },
+  "contracts/design-brief.v3.schema.json": {
+    "mtime": 1792749267.2026298,
+    "seen": 1792924467.7587054,
+    "ast_hash": "5b33d182d0af36b94f5b3bd093405d61",
+    "semantic_hash": ""
+  },
+  "contracts/evidence-coverage.v1.schema.json": {
+    "mtime": 1792749267.2026298,
+    "seen": 1792924467.758706,
+    "ast_hash": "62107c4d28e15f5e037f33468b19043a",
+    "semantic_hash": ""
+  },
+  "contracts/interpreted-brief.v2.schema.json": {
+    "mtime": 1792749267.2026298,
+    "seen": 1792924467.7587075,
+    "ast_hash": "687001ad26669bd1908cdecffe4c2821",
+    "semantic_hash": ""
+  },
+  "contracts/native-drafting.v2.schema.json": {
+    "mtime": 1792749267.2026298,
+    "seen": 1792924467.7587085,
+    "ast_hash": "85e9ec2fc5951e61bd87d62e48ece80b",
+    "semantic_hash": ""
+  },
+  "contracts/native-drafting.v3.schema.json": {
+    "mtime": 1792749267.2026298,
+    "seen": 1792924467.7587094,
+    "ast_hash": "768c85e8402efd0b4a6444de467cecec",
+    "semantic_hash": ""
+  },
+  "contracts/native-drafting.v4.schema.json": {
+    "mtime": 1792750086.213287,
+    "seen": 1792924467.7587104,
+    "ast_hash": "cc3dd284d57a011539ffecd0cfdeae0e",
+    "semantic_hash": ""
+  },
+  "contracts/phase1.schema.json": {
+    "mtime": 1792749267.2026298,
+    "seen": 1792924467.758711,
+    "ast_hash": "0ff4206a1ec10d10c24b487164825493",
+    "semantic_hash": ""
+  },
+  "contracts/plan-graph.v1.schema.json": {
+    "mtime": 1792749267.2026298,
+    "seen": 1792924467.7587118,
+    "ast_hash": "0290c88e1e6c967f18ea86b7c5648973",
+    "semantic_hash": ""
+  },
+  "contracts/plan-graph.v2.schema.json": {
+    "mtime": 1792749267.2026298,
+    "seen": 1792924467.7587128,
+    "ast_hash": "0dcb8bb796026190643cc90c94e41fb6",
+    "semantic_hash": ""
+  },
+  "contracts/plan-graph.v3.schema.json": {
+    "mtime": 1792749267.2026298,
+    "seen": 1792924467.7587135,
+    "ast_hash": "80177496e04af0ed86f613cb9ccd011b",
+    "semantic_hash": ""
+  },
+  "contracts/plan-graph.v4.schema.json": {
+    "mtime": 1792749267.2026298,
+    "seen": 1792924467.7587147,
+    "ast_hash": "cb5225677098626b0e79f988542a5b06",
+    "semantic_hash": ""
+  },
+  "contracts/task-event.v2.schema.json": {
+    "mtime": 1792749267.2026298,
+    "seen": 1792924467.7587154,
+    "ast_hash": "1f8fa015fcf3b6ea4a786b200527eb41",
+    "semantic_hash": ""
+  },
+  "contracts/task-goal.v1.schema.json": {
+    "mtime": 1792749267.2026298,
+    "seen": 1792924467.7587163,
+    "ast_hash": "04ad84ecf96a7983c6b17c16e314d0c4",
+    "semantic_hash": ""
+  },
+  "contracts/task-protocol.v2.schema.json": {
+    "mtime": 1792749267.2026298,
+    "seen": 1792924467.7587178,
+    "ast_hash": "29de8a2561d56b2143b7cba613142f90",
+    "semantic_hash": ""
+  },
+  "docs/provenance/api-references.json": {
+    "mtime": 1792749267.2026298,
+    "seen": 1792924467.7587185,
+    "ast_hash": "ae549b822983baa3cff1c2bab188e6a1",
+    "semantic_hash": ""
+  },
+  "docs/provenance/source-export.json": {
+    "mtime": 1792749267.213246,
+    "seen": 1792924467.7587192,
+    "ast_hash": "1a044ab7f5282e66a8b592bdd3bd0b5b",
+    "semantic_hash": ""
+  },
+  "fixtures/3bhk/brief.json": {
+    "mtime": 1792749267.2135525,
+    "seen": 1792924467.75872,
+    "ast_hash": "55b224bce35a83aa05282539df8801d7",
+    "semantic_hash": ""
+  },
+  "fixtures/3bhk/layout.json": {
+    "mtime": 1792749267.21456,
+    "seen": 1792924467.7587209,
+    "ast_hash": "d95612c30e6ccd7d5ebb5d81d358e9f0",
+    "semantic_hash": ""
+  },
+  "global.json": {
+    "mtime": 1792749267.21456,
+    "seen": 1792924467.7587218,
+    "ast_hash": "dff2cb998dfcf00455ab02121aebc5ba",
+    "semantic_hash": ""
+  },
+  "package.json": {
+    "mtime": 1792923111.3043811,
+    "seen": 1792924467.7587225,
+    "ast_hash": "49a7db68c800aa8ae7a46523f2ae9c8f",
+    "semantic_hash": ""
+  },
+  "packaging/distribution.json": {
+    "mtime": 1792749267.21456,
+    "seen": 1792924467.7587233,
+    "ast_hash": "eac0201ca11ded4e59bf4eb39750316b",
+    "semantic_hash": ""
+  },
+  "packaging/lifecycle.mjs": {
+    "mtime": 1792749267.21456,
+    "seen": 1792924467.7587245,
+    "ast_hash": "24154c361f67ffb7370e87e2fe8c675b",
+    "semantic_hash": ""
+  },
+  "packaging/release.json": {
+    "mtime": 1792923111.3043811,
+    "seen": 1792924467.7587254,
+    "ast_hash": "45a9b8aa650dc57ace7d787dbccbf40a",
+    "semantic_hash": ""
+  },
+  "packaging/setup.mjs": {
+    "mtime": 1792749267.21456,
+    "seen": 1792924467.7587264,
+    "ast_hash": "cef6a9ad07cb67021c335addbf1cba76",
+    "semantic_hash": ""
+  },
+  "packaging/tests/lifecycle.test.mjs": {
+    "mtime": 1792749267.21456,
+    "seen": 1792924467.758727,
+    "ast_hash": "7a7527c57dab3b86df1545fb6b2b70e7",
+    "semantic_hash": ""
+  },
+  "packaging/tests/payload-smoke.mjs": {
+    "mtime": 1792778269.7489834,
+    "seen": 1792924467.758728,
+    "ast_hash": "efd6aefc20f1ba675c7ea1dfe49e42b3",
+    "semantic_hash": ""
+  },
+  "revit-mcp/package.json": {
+    "mtime": 1792923111.3043811,
+    "seen": 1792924467.758729,
+    "ast_hash": "589e3084cfef71081f8f9e05adcf5a66",
+    "semantic_hash": ""
+  },
+  "revit-mcp/src/bridge.ts": {
+    "mtime": 1792755146.33794,
+    "seen": 1792924467.7587297,
+    "ast_hash": "f6ca97820cd37fd2a9b931cf3db1c649",
+    "semantic_hash": ""
+  },
+  "revit-mcp/src/drafting.ts": {
+    "mtime": 1792775149.8702343,
+    "seen": 1792924467.7587304,
+    "ast_hash": "8ea46a09d5092be18e0a4e0aede5d5cf",
+    "semantic_hash": ""
+  },
+  "revit-mcp/src/geometry-v3.ts": {
+    "mtime": 1792749267.2184436,
+    "seen": 1792924467.7587314,
+    "ast_hash": "aaa879a5f1a74d73ed2d5da376f80b2e",
+    "semantic_hash": ""
+  },
+  "revit-mcp/src/index.ts": {
+    "mtime": 1792776435.8785758,
+    "seen": 1792924467.758732,
+    "ast_hash": "d5ae267e66f3b99a7e923e2fc72da5dd",
+    "semantic_hash": ""
+  },
+  "revit-mcp/src/invoke.ts": {
+    "mtime": 1792749267.2184436,
+    "seen": 1792924467.7587328,
+    "ast_hash": "5df5691186af572ffb5b1f583c32b881",
+    "semantic_hash": ""
+  },
+  "revit-mcp/src/layout.ts": {
+    "mtime": 1792749267.2184436,
+    "seen": 1792924467.7587337,
+    "ast_hash": "5eaa31fa1d25f13aac36b45d169d2016",
+    "semantic_hash": ""
+  },
+  "revit-mcp/src/plan-drawing.ts": {
+    "mtime": 1792749267.2184436,
+    "seen": 1792924467.7587347,
+    "ast_hash": "e4ca68de1432fc78651a79bd41749e07",
+    "semantic_hash": ""
+  },
+  "revit-mcp/src/plan-graph.ts": {
+    "mtime": 1792749267.2184436,
+    "seen": 1792924467.758736,
+    "ast_hash": "d55c20718fdc4aacd2b9c2f4bec18ec7",
+    "semantic_hash": ""
+  },
+  "revit-mcp/src/program-revision.ts": {
+    "mtime": 1792749267.2184436,
+    "seen": 1792924467.7587368,
+    "ast_hash": "dc98e7b04c9d18e0dd0fadfdd5bdcccb",
+    "semantic_hash": ""
+  },
+  "revit-mcp/src/program-search.ts": {
+    "mtime": 1792749267.2184436,
+    "seen": 1792924467.7587376,
+    "ast_hash": "5fc49ea9b763003f4890c5aed9eabc37",
+    "semantic_hash": ""
+  },
+  "revit-mcp/src/smoke.ts": {
+    "mtime": 1792749267.2184436,
+    "seen": 1792924467.7587388,
+    "ast_hash": "6dbb2c43267c90597943c9744aee0288",
+    "semantic_hash": ""
+  },
+  "revit-mcp/src/variable-bindings.ts": {
+    "mtime": 1792749267.2184436,
+    "seen": 1792924467.7587395,
+    "ast_hash": "00996ea26d454441c3bfcafd04dab663",
+    "semantic_hash": ""
+  },
+  "revit-mcp/src/variable-candidates.ts": {
+    "mtime": 1792749267.2184436,
+    "seen": 1792924467.7587404,
+    "ast_hash": "4b595da678244aa7bb52f0450a72aee1",
+    "semantic_hash": ""
+  },
+  "revit-mcp/src/variable-cli.ts": {
+    "mtime": 1792749267.2184436,
+    "seen": 1792924467.7587416,
+    "ast_hash": "efa1966c5252fa956a03038158f1656b",
+    "semantic_hash": ""
+  },
+  "revit-mcp/tests/analysis-views.test.mjs": {
+    "mtime": 1792753923.2527475,
+    "seen": 1792924467.7587426,
+    "ast_hash": "89a1752a03a6868323a928f791631b30",
+    "semantic_hash": ""
+  },
+  "revit-mcp/tests/bridge.test.mjs": {
+    "mtime": 1792755087.449719,
+    "seen": 1792924467.7587433,
+    "ast_hash": "4fbaf68c2014a07eb7ebe5ffb7bf1c8f",
+    "semantic_hash": ""
+  },
+  "revit-mcp/tests/element-query.test.mjs": {
+    "mtime": 1792775159.183894,
+    "seen": 1792924467.758744,
+    "ast_hash": "671a741d7844b526ac400cd05cb06cb1",
+    "semantic_hash": ""
+  },
+  "revit-mcp/tests/geometry-v3.test.mjs": {
+    "mtime": 1792749267.2184436,
+    "seen": 1792924467.7587447,
+    "ast_hash": "6dd54c32e5001e930420dfc4ed54ef58",
+    "semantic_hash": ""
+  },
+  "revit-mcp/tests/layout.test.mjs": {
+    "mtime": 1792749267.2184436,
+    "seen": 1792924467.7587457,
+    "ast_hash": "0da124c6f7bcb75440238cb9d1694dff",
+    "semantic_hash": ""
+  },
+  "revit-mcp/tests/native-extensions.test.mjs": {
+    "mtime": 1792923978.7524805,
+    "seen": 1792924467.7587466,
+    "ast_hash": "a29dd65e60a760782f69ff2926765df9",
+    "semantic_hash": ""
+  },
+  "revit-mcp/tests/plan-drawing.test.mjs": {
+    "mtime": 1792749267.2184436,
+    "seen": 1792924467.7587476,
+    "ast_hash": "994471703f2c9750c83ec9768858d828",
+    "semantic_hash": ""
+  },
+  "revit-mcp/tests/plan-graph.test.mjs": {
+    "mtime": 1792749267.2184436,
+    "seen": 1792924467.7587488,
+    "ast_hash": "7078c227d554029e04f8a614f6d349bc",
+    "semantic_hash": ""
+  },
+  "revit-mcp/tests/reflection-probe.test.mjs": {
+    "mtime": 1792749267.2184436,
+    "seen": 1792924467.7587497,
+    "ast_hash": "c727f4da22ce888137e8bd1db1817892",
+    "semantic_hash": ""
+  },
+  "revit-mcp/tests/variable-candidates.test.mjs": {
+    "mtime": 1792749267.2184436,
+    "seen": 1792924467.7587504,
+    "ast_hash": "4d8d8d6a5991a7dca70c90d046818828",
+    "semantic_hash": ""
+  },
+  "revit-mcp/tsconfig.json": {
+    "mtime": 1792749267.2184436,
+    "seen": 1792924467.7587512,
+    "ast_hash": "0619a621f4e25dce1a2a7ec92b5b3552",
+    "semantic_hash": ""
+  },
+  "revit-plugin/installer/install-dev.ps1": {
+    "mtime": 1792749267.228787,
+    "seen": 1792924467.758752,
+    "ast_hash": "5beed5772fbacb290687215274a06e30",
+    "semantic_hash": ""
+  },
+  "revit-plugin/installer/uninstall-dev.ps1": {
+    "mtime": 1792749267.228787,
+    "seen": 1792924467.758753,
+    "ast_hash": "9f472d4cd81f7f1cc0da1b0f3ed2d847",
+    "semantic_hash": ""
+  },
+  "revit-plugin/src/Datumm.Bridge/BridgeServer.cs": {
+    "mtime": 1792752512.6376467,
+    "seen": 1792924467.7587538,
+    "ast_hash": "8baa7035181966473b7c556522055456",
+    "semantic_hash": ""
+  },
+  "revit-plugin/src/Datumm.Bridge/Datumm.Bridge.csproj": {
+    "mtime": 1792923111.3043811,
+    "seen": 1792924467.7587545,
+    "ast_hash": "edb791c6f411c5b93dc45a8d7c0ef987",
+    "semantic_hash": ""
+  },
+  "revit-plugin/src/Datumm.Bridge/DeletionOwnership.cs": {
+    "mtime": 1792749267.228787,
+    "seen": 1792924467.7587554,
+    "ast_hash": "216b918f6e80913296a53b875579eb30",
+    "semantic_hash": ""
+  },
+  "revit-plugin/src/Datumm.Bridge/DispatcherDiagnostics.cs": {
+    "mtime": 1792749267.228787,
+    "seen": 1792924467.7587562,
+    "ast_hash": "f189e4c5d51591d0aa2b524d46b65953",
+    "semantic_hash": ""
+  },
+  "revit-plugin/src/Datumm.Bridge/DraftingContracts.cs": {
+    "mtime": 1792750382.0861058,
+    "seen": 1792924467.758757,
+    "ast_hash": "7bd950745e7463b4bd8386b550e8a405",
+    "semantic_hash": ""
+  },
+  "revit-plugin/src/Datumm.Bridge/ExistingMutationIdentityPolicy.cs": {
+    "mtime": 1792749267.228787,
+    "seen": 1792924467.7587578,
+    "ast_hash": "a67a4ae4942e0ef70a86b649b4afe0a3",
+    "semantic_hash": ""
+  },
+  "revit-plugin/src/Datumm.Bridge/Protocol.cs": {
+    "mtime": 1792923111.3043811,
+    "seen": 1792924467.7587585,
+    "ast_hash": "c95b97b8a59e8feaaf6a6ea2e45b7118",
+    "semantic_hash": ""
+  },
+  "revit-plugin/src/Datumm.Bridge/ReflectionProbeRequest.cs": {
+    "mtime": 1792749267.228787,
+    "seen": 1792924467.7587595,
+    "ast_hash": "16188a176a2c37fba412e6b0c5ee2850",
+    "semantic_hash": ""
+  },
+  "revit-plugin/src/Datumm.Bridge/RevitCompatibility.cs": {
+    "mtime": 1792749267.228787,
+    "seen": 1792924467.7587607,
+    "ast_hash": "12c675ef764818168de0489f3faa8f6e",
+    "semantic_hash": ""
+  },
+  "revit-plugin/src/Datumm.Bridge/SessionStore.cs": {
+    "mtime": 1792749267.228787,
+    "seen": 1792924467.7587614,
+    "ast_hash": "93ab25faf8a83f3c42473ce053e16fbc",
+    "semantic_hash": ""
+  },
+  "revit-plugin/src/Datumm.Bridge/packages.lock.json": {
+    "mtime": 1792749267.228787,
+    "seen": 1792924467.7587626,
+    "ast_hash": "7693da1c3af823035c7c092894b272c6",
+    "semantic_hash": ""
+  },
+  "revit-plugin/src/Datumm.Revit/Application.cs": {
+    "mtime": 1792749267.228787,
+    "seen": 1792924467.7587633,
+    "ast_hash": "bf46961fb5d5a24a417ff410625a1240",
+    "semantic_hash": ""
+  },
+  "revit-plugin/src/Datumm.Revit/ConnectionWindow.cs": {
+    "mtime": 1792749267.228787,
+    "seen": 1792924467.758764,
+    "ast_hash": "b67696a9bef4ae3fd8a78da98381f1a5",
+    "semantic_hash": ""
+  },
+  "revit-plugin/src/Datumm.Revit/Datumm.Revit.csproj": {
+    "mtime": 1792923111.3043811,
+    "seen": 1792924467.758765,
+    "ast_hash": "f22cf6b48c062b9d59a6d797400fa2ef",
+    "semantic_hash": ""
+  },
+  "revit-plugin/src/Datumm.Revit/DraftingService.cs": {
+    "mtime": 1792775793.799142,
+    "seen": 1792924467.758766,
+    "ast_hash": "6437e94e120d97c69f77a7ff99d76755",
+    "semantic_hash": ""
+  },
+  "revit-plugin/src/Datumm.Revit/ModelInspection.cs": {
+    "mtime": 1792749267.2339513,
+    "seen": 1792924467.758767,
+    "ast_hash": "5cd2282dc229de65bf84bbfb734044c9",
+    "semantic_hash": ""
+  },
+  "revit-plugin/src/Datumm.Revit/ModelWarnings.cs": {
+    "mtime": 1792753947.4097033,
+    "seen": 1792924467.7587676,
+    "ast_hash": "1c0f922c54ab8011bc0a55cadaf35916",
+    "semantic_hash": ""
+  },
+  "revit-plugin/src/Datumm.Revit/NativeExtensions.cs": {
+    "mtime": 1792924294.5241213,
+    "seen": 1792924467.7587683,
+    "ast_hash": "10d951b264205a9dd35238f67b9027de",
+    "semantic_hash": ""
+  },
+  "revit-plugin/src/Datumm.Revit/ReadDispatcher.cs": {
+    "mtime": 1792755298.3184178,
+    "seen": 1792924467.7587695,
+    "ast_hash": "56c049d35e51d90408f38e3cd2788715",
+    "semantic_hash": ""
+  },
+  "revit-plugin/src/Datumm.Revit/ReflectionProbe.cs": {
+    "mtime": 1792749267.2339513,
+    "seen": 1792924467.7587702,
+    "ast_hash": "fbd8cdfe753dc03ca414f91cb0619594",
+    "semantic_hash": ""
+  },
+  "revit-plugin/src/Datumm.Revit/SpatialInspection.cs": {
+    "mtime": 1792773627.7557428,
+    "seen": 1792924467.7587712,
+    "ast_hash": "cfde56734edf429e19c2acb7e6e52ab7",
+    "semantic_hash": ""
+  },
+  "revit-plugin/src/Datumm.Revit/packages.lock.json": {
+    "mtime": 1792749267.2339513,
+    "seen": 1792924467.7587721,
+    "ast_hash": "54da1a43cda8c3a11038614a2352460d",
+    "semantic_hash": ""
+  },
+  "revit-plugin/tests/Datumm.Bridge.TestHost/ContractChecks.cs": {
+    "mtime": 1792749889.5537796,
+    "seen": 1792924467.758773,
+    "ast_hash": "c153745f00d4612bc135dfe144808f68",
+    "semantic_hash": ""
+  },
+  "revit-plugin/tests/Datumm.Bridge.TestHost/Datumm.Bridge.TestHost.csproj": {
+    "mtime": 1792749267.2355778,
+    "seen": 1792924467.7587748,
+    "ast_hash": "5011868f3b2be20b630e50c7fc7d4096",
+    "semantic_hash": ""
+  },
+  "revit-plugin/tests/Datumm.Bridge.TestHost/Program.cs": {
+    "mtime": 1792749267.2355778,
+    "seen": 1792924467.7587757,
+    "ast_hash": "fed5561a4326fc168b567c08bf34e7d4",
+    "semantic_hash": ""
+  },
+  "revit-plugin/tests/Datumm.Bridge.TestHost/ReflectionProbeChecks.cs": {
+    "mtime": 1792749267.2355778,
+    "seen": 1792924467.7587767,
+    "ast_hash": "9853787d710b46aa9510d623fe64fd4e",
+    "semantic_hash": ""
+  },
+  "revit-plugin/tests/Datumm.Bridge.TestHost/RevitCompatibilityChecks.cs": {
+    "mtime": 1792749267.2355778,
+    "seen": 1792924467.7587776,
+    "ast_hash": "90c0ccad330868d592ec891cfcecccc3",
+    "semantic_hash": ""
+  },
+  "revit-plugin/tests/Datumm.Bridge.TestHost/packages.lock.json": {
+    "mtime": 1792749267.2355778,
+    "seen": 1792924467.7587786,
+    "ast_hash": "db533aa81ed1e4456a6f6f94440d6008",
+    "semantic_hash": ""
+  },
+  "revit-plugin/tests/spatial-inspection-geometry.ps1": {
+    "mtime": 1792775794.1597097,
+    "seen": 1792924467.7587793,
+    "ast_hash": "7f8e08155d2e4e26dcfe971c34d2af78",
+    "semantic_hash": ""
+  },
+  "scripts/generate-native-schema.mjs": {
+    "mtime": 1792750033.6803424,
+    "seen": 1792924467.7587805,
+    "ast_hash": "5b3e807773d18d4c26580f7c58ad7954",
+    "semantic_hash": ""
+  },
+  "scripts/package.ps1": {
+    "mtime": 1792772484.1933875,
+    "seen": 1792924467.7587812,
+    "ast_hash": "b76276a91a9544ed05512ad483816126",
+    "semantic_hash": ""
+  },
+  "scripts/setup-node.ps1": {
+    "mtime": 1792749267.2355778,
+    "seen": 1792924467.758782,
+    "ast_hash": "e82e3ca77eced9bbfaa916eb757f9ce0",
+    "semantic_hash": ""
+  },
+  "scripts/verify-payload-runtime.mjs": {
+    "mtime": 1792777060.7637792,
+    "seen": 1792924467.7587826,
+    "ast_hash": "edc2277ff3740236878c7b8e7a550213",
+    "semantic_hash": ""
+  },
+  "tests/integration/phase5-mvp/M05/F01-brief.json": {
+    "mtime": 1792749267.2355778,
+    "seen": 1792924467.7587838,
+    "ast_hash": "957cb09a1e28d856b15f0800ae63907e",
+    "semantic_hash": ""
+  },
+  "tests/integration/phase5f-frozen-briefs.json": {
+    "mtime": 1792749267.2355778,
+    "seen": 1792924467.7587845,
+    "ast_hash": "3562502f6ba1ee587b007b00c1c68f65",
+    "semantic_hash": ""
+  },
+  "tests/integration/phase5f-frozen-programs.json": {
+    "mtime": 1792749267.2355778,
+    "seen": 1792924467.7587852,
+    "ast_hash": "f097b09cde00d60e1deae217d689063b",
+    "semantic_hash": ""
+  },
+  "README.md": {
+    "mtime": 1792749267.193716,
+    "seen": 1792924467.7587862,
+    "ast_hash": "0ae662c3d72efea98c9bec51e062def7",
+    "semantic_hash": ""
+  },
+  "THIRD_PARTY_NOTICES.md": {
+    "mtime": 1792749267.193716,
+    "seen": 1792924467.7587872,
+    "ast_hash": "09cc3f5c617f16be2d1eb08dbb8c6e5b",
+    "semantic_hash": ""
+  },
+  "apps/connector/README.md": {
+    "mtime": 1792749267.2026298,
+    "seen": 1792924467.758788,
+    "ast_hash": "9249afd57df83df81e6118e6a42b849b",
+    "semantic_hash": ""
+  },
+  "contracts/README.md": {
+    "mtime": 1792749267.2026298,
+    "seen": 1792924467.7587888,
+    "ast_hash": "72ecbb430561085093154284b9445cfc",
+    "semantic_hash": ""
+  },
+  "docs/compatibility.md": {
+    "mtime": 1792749267.2026298,
+    "seen": 1792924467.7587895,
+    "ast_hash": "f22842a0323a3af6d7d4045c571c257d",
+    "semantic_hash": ""
+  },
+  "docs/verification-alpha28.md": {
+    "mtime": 1792749267.2135525,
+    "seen": 1792924467.7587905,
+    "ast_hash": "13e714b95ee489f91bd13696a18b88b8",
+    "semantic_hash": ""
+  },
+  "handoff.md": {
+    "mtime": 1792749267.21456,
+    "seen": 1792924467.7587914,
+    "ast_hash": "b3ff93292c2483f68a86ea9a3e834981",
+    "semantic_hash": ""
+  },
+  "packaging/QUICKSTART.txt": {
+    "mtime": 1792749267.21456,
+    "seen": 1792924467.7587922,
+    "ast_hash": "7aa08d61cfe8150bd7d58c7fc093e16c",
+    "semantic_hash": ""
+  },
+  "packaging/installer-notice.txt": {
+    "mtime": 1792749267.21456,
+    "seen": 1792924467.758793,
+    "ast_hash": "62c18d0276b7e0cb641246dcc76a96a6",
+    "semantic_hash": ""
+  },
+  "revit-mcp/README.md": {
+    "mtime": 1792749267.2184436,
+    "seen": 1792924467.758794,
+    "ast_hash": "9eb7bacdaeec10c23e2710b01655f8f5",
+    "semantic_hash": ""
+  },
+  "revit-plugin/README.md": {
+    "mtime": 1792749267.2184436,
+    "seen": 1792924467.7587948,
+    "ast_hash": "0a63d6a4d4cb2773d3a2f1e6a1a68f97",
+    "semantic_hash": ""
+  },
+  "datumm-app/fav.png": {
+    "mtime": 1792749267.2026298,
+    "seen": 1792924467.7587955,
+    "ast_hash": "d668878ff497741927ccdd92adaae290",
+    "semantic_hash": ""
+  },
+  "fixtures/3bhk/proposal.svg": {
+    "mtime": 1792749267.21456,
+    "seen": 1792924467.7587962,
+    "ast_hash": "627ecaf880b2b07f2f4754b400859998",
+    "semantic_hash": ""
+  }
+}
