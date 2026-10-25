@@ -1,7 +1,7 @@
 {
   "product": "datumm-agent",
-  "version": "0.5.0-alpha.30",
-  "componentVersion": "0.2.0-alpha.9",
+  "version": "0.5.0-alpha.31",
+  "componentVersion": "0.2.0-alpha.10",
   "revitApiVersion": "26.0.4.409",
   "revitCompatibility": {
     "year": 2026,

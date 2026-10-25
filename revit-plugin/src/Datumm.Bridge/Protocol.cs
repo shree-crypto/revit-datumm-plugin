@@ -5,7 +5,7 @@ namespace Datumm.Bridge;
 public static class Protocol
 {
     public const string Version = "1";
-    public const string PluginVersion = "0.2.0-alpha.9";
+    public const string PluginVersion = "0.2.0-alpha.10";
     public static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
 }
 

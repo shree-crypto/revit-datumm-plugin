@@ -72,6 +72,10 @@ test('arc wall dispatch requires operation schema 4 and advertised arc support',
 
 test('P9 targeted query/show transport refuses legacy dispatch and preserves exact scope',{timeout:15000},async()=>{
   const sessionId=randomUUID(),documentId=randomUUID(),directory=await mkdtemp(join(tmpdir(),'datumm-p9-'));
+  const constraints={dependentIds:['native-child'],dependentCount:1,dependenciesComplete:true,
+    nativeIdentity:{uniqueId:'wall',nativeClass:'Autodesk.Revit.DB.Wall',nativeId:'9007199254740993'},
+    dependentIdentities:[{uniqueId:'native-child',nativeId:'9007199254740994',nativeClass:'Autodesk.Revit.DB.Element',isTransient:false,
+      categoryId:null,missing:false,unavailableFields:['nativeOwnerViewId'],identityComplete:false}],dependentIdentitiesComplete:false};
   let modern=false,malformed=false,calls=[];
   const server=createServer(async(req,res)=>{
     assert.equal(req.headers.authorization,'Bearer '+'b'.repeat(64));
@@ -80,7 +84,7 @@ test('P9 targeted query/show transport refuses legacy dispatch and preserves exa
     else{
       let text='';for await(const chunk of req)text+=chunk;const request=JSON.parse(text);calls.push(request.tool);
       if(request.tool==='get_native_capabilities')data={documentId,revision:3,schemaVersion:1,operationSchemaVersion:2,...(modern?{inspectionSchemaVersion:2}:{}),minimumMcpVersion:'0.2.0-alpha.5',pluginVersion:'0.2.0-alpha.5',revitBuild:'simulated',operationKinds:['wall'],placementSupport:[],limits:{operations:100,pageSize:100,dimensionReferences:8,imageBytes:1500000,imagePixels:2048},limitations:[]};
-      else if(request.tool==='get_model_elements')data={documentId,revision:3,units:'mm',coordinateFrame:'revit-internal-xy',categories:request.arguments.categories,levelId:null,elementIds:request.arguments.elementIds,region:request.arguments.region,total:0,nextOffset:null,elements:[],limitations:['Simulated transport; no native API']};
+      else if(request.tool==='get_model_elements')data={documentId,revision:3,units:'mm',coordinateFrame:'revit-internal-xy',categories:request.arguments.categories,levelId:null,elementIds:request.arguments.elementIds,region:request.arguments.region,total:1,nextOffset:null,elements:[{element:{id:'wall',constraints},parameters:[]}],limitations:['Simulated transport; no native API']};
       else data={documentId,revision:3,action:request.arguments.action,elementIds:request.arguments.elementIds,viewId:'view',modelChanged:malformed};
     }
     res.setHeader('content-type','application/json');res.end(JSON.stringify({protocolVersion:'1',sessionId,operationId:req.headers['x-operation-id'],ok:true,data,error:null}));
@@ -94,6 +98,7 @@ test('P9 targeted query/show transport refuses legacy dispatch and preserves exa
     modern=true;
     const page=await client.call('command',sessionId,{tool:'get_model_elements',arguments:query});
     assert.deepEqual(page.data.region,query.region);assert.deepEqual(page.data.elementIds,['wall']);
+    assert.deepEqual(page.data.elements[0].element.constraints,constraints,'Additive identities, lossless 64-bit IDs and incomplete diagnostics must survive transport unchanged');
     const show={documentId,expectedRevision:3,elementIds:['wall'],action:'show'};
     assert.equal((await client.call('command',sessionId,{tool:'show_model_elements',arguments:show})).data.modelChanged,false);
     malformed=true;

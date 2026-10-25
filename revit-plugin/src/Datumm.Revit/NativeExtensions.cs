@@ -18,7 +18,7 @@ internal static class NativeExtensions
     public static object Capabilities(Document doc, ReadDispatcher dispatcher) => new {
         documentId = dispatcher.Identity(doc), revision = dispatcher.Revision(doc),
         schemaVersion = 1, operationSchemaVersion = 4, inspectionSchemaVersion = 2, minimumMcpVersion = "0.2.0-alpha.5",
-        pluginVersion = "0.2.0-alpha.9", revitBuild = doc.Application.VersionBuild,
+        pluginVersion = "0.2.0-alpha.10", revitBuild = doc.Application.VersionBuild,
         roomTagPolicy = "explicit-reviewed-operations",
         wallCurveKinds = new[] { "line", "arc" },
         roomBoundaryCurveKinds = new[] { "line", "arc" },
@@ -241,10 +241,43 @@ internal static class NativeExtensions
     public static object Constraints(Element e)
     {
         var dependencies = e.GetDependentElements(null);
+        var retained = dependencies.Take(100).Select(id => (Id: id, Element: e.Document.GetElement(id))).ToArray();
+        var identities = retained.Select(row => ElementIdentity(row.Element, row.Id)).ToArray();
         return new {pinned=e.Pinned,groupId=e.Document.GetElement(e.GroupId)?.UniqueId,designOptionId=e.DesignOption?.UniqueId,
-            dependentIds=dependencies.Take(100).Select(id=>e.Document.GetElement(id)?.UniqueId).Where(id=>id!=null).ToArray(),
-            dependentCount=dependencies.Count,dependenciesComplete=dependencies.Count<=100,
+            dependentIds=identities.Select(identity=>identity.UniqueId).Where(id=>id!=null).ToArray(),
+            dependentCount=dependencies.Count,dependenciesComplete=dependencies.Count<=100&&identities.All(identity=>identity.UniqueId!=null),
+            nativeIdentity=ElementIdentity(e,e.Id).Snapshot,
+            dependentIdentities=identities.Select(identity=>identity.Snapshot).ToArray(),
+            dependentIdentitiesComplete=dependencies.Count<=100&&identities.All(identity=>identity.Complete),
             requiresNativePreflight=true};
+    }
+    private static (object Snapshot, bool Complete, string? UniqueId) ElementIdentity(Element? element, ElementId nativeId)
+    {
+        var unavailable = new List<string>();
+        object? Read(string field, Func<Element, object?> getter)
+        {
+            if (element == null) return null;
+            try { return getter(element); }
+            catch (Exception) { unavailable.Add(field); return null; }
+        }
+        var uniqueId = Read("uniqueId", value => value.UniqueId) as string;
+        if (string.IsNullOrEmpty(uniqueId))
+        {
+            uniqueId = null;
+            if (element != null && !unavailable.Contains("uniqueId")) unavailable.Add("uniqueId");
+        }
+        var nativeClass = Read("nativeClass", value => value.GetType().FullName);
+        var isTransient = Read("isTransient", value => value.IsTransient);
+        var categoryId = Read("categoryId", value => value.Category?.Id.Value.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        var categoryName = Read("categoryName", value => value.Category?.Name);
+        var nativeLevelId = Read("nativeLevelId", value => value.LevelId.Value.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        var nativeOwnerViewId = Read("nativeOwnerViewId", value => value.OwnerViewId.Value.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        var nativeTypeId = Read("nativeTypeId", value => value.GetTypeId().Value.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        var viewSpecific = Read("viewSpecific", value => value.ViewSpecific);
+        var complete = element != null && unavailable.Count == 0;
+        return (new {nativeId=nativeId.Value.ToString(System.Globalization.CultureInfo.InvariantCulture),uniqueId,nativeClass,isTransient,categoryId,categoryName,
+            nativeLevelId,nativeOwnerViewId,nativeTypeId,viewSpecific,missing=element==null,
+            unavailableFields=unavailable.ToArray(),identityComplete=complete}, complete, uniqueId);
     }
     private static double? FloorPlane(Floor floor)
     {
