@@ -9,10 +9,24 @@ namespace Datumm.Bridge;
 public sealed record PointMm([property: JsonRequired] double X, [property: JsonRequired] double Y);
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed record Point3Mm([property: JsonRequired] double X, [property: JsonRequired] double Y, [property: JsonRequired] double Z);
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed record SectionBox([property: JsonRequired] Point3Mm CenterMm, [property: JsonRequired] PointMm Direction,
+    [property: JsonRequired] double WidthMm, [property: JsonRequired] double HeightMm, [property: JsonRequired] double DepthMm);
+
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed class DraftOperation
 {
     public required string Kind { get; init; }
     public required string Key { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? ViewFamilyTypeId { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? TitleBlockTypeId { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? ViewportTypeId { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? SheetId { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? SheetNumber { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public int? Scale { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public SectionBox? SectionBox { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public PointMm? CenterMm { get; init; }
     public string? TypeId { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? SchemeId { get; init; }
@@ -66,6 +80,15 @@ public sealed class ChangeSet
             throw new BridgeException("UNSUPPORTED_OPERATION_BATCH", "A phase-bound change set must contain only doors and a current phase UniqueId.");
         if (Operations.Any(op => op?.Kind == "create_level") && Operations.Any(op => op?.Kind != "create_level"))
             throw new BridgeException("UNSUPPORTED_OPERATION_BATCH", "Level creation must be reviewed in a separate level-only batch.");
+        string[] docKinds = ["create_plan_view", "create_3d_view", "create_section_view", "create_sheet", "create_viewport"];
+        if (Operations.Any(op => op != null && docKinds.Contains(op.Kind)) && Operations.Any(op => op?.Kind != Operations[0]?.Kind))
+            throw new BridgeException("UNSUPPORTED_OPERATION_BATCH", "Documentation operations require a homogeneous batch.");
+        var docViews = Operations.Where(op => op?.Kind is "create_plan_view" or "create_3d_view" or "create_section_view").ToArray();
+        Require(docViews.Select(op => op.Name).Distinct(StringComparer.OrdinalIgnoreCase).Count() == docViews.Length, "View names must be unique.");
+        var sheets = Operations.Where(op => op?.Kind == "create_sheet").ToArray();
+        Require(sheets.Select(op => op.SheetNumber).Distinct(StringComparer.OrdinalIgnoreCase).Count() == sheets.Length, "Sheet numbers must be unique.");
+        var viewports = Operations.Where(op => op?.Kind == "create_viewport").ToArray();
+        Require(viewports.Select(op => op.ViewId).Distinct(StringComparer.Ordinal).Count() == viewports.Length, "A view may only be placed once.");
         var levelNames = Operations.Where(op => op?.Kind == "create_level").Select(op => op.Name).ToArray();
         if (levelNames.Distinct(StringComparer.OrdinalIgnoreCase).Count() != levelNames.Length)
             throw new BridgeException("INVALID_OPERATION", "Level names must be unique within the batch.");
@@ -85,11 +108,14 @@ public sealed class ChangeSet
             Require(op.Kind == "set_room_color_scheme" || op.SchemeId == null, "Scheme ID is only supported for room color scheme assignments.");
             Require(op.Kind == "create_level" || op.ElevationMm == null, "Elevation is only supported for level creation.");
             Require(op.Kind == "wall" || op.ArcMid == null, "Arc midpoint is only supported for walls.");
+            Require(docKinds.Contains(op.Kind) || (op.ViewFamilyTypeId == null && op.TitleBlockTypeId == null && op.ViewportTypeId == null && op.SheetId == null && op.SheetNumber == null && op.Scale == null && op.SectionBox == null && op.CenterMm == null), "Documentation fields are only supported in documentation operations.");
             foreach (var p in new[] { op.Start, op.End, op.ArcMid, op.Point }.Concat(op.Boundary ?? []))
                 if (p != null && (!double.IsFinite(p.X) || !double.IsFinite(p.Y) || Math.Abs(p.X) > 1000000 || Math.Abs(p.Y) > 1000000))
                     throw new BridgeException("INVALID_COORDINATES", "Coordinates must be finite and within 1 km of internal origin.");
             switch (op.Kind)
             {
+                case "create_plan_view": case "create_3d_view": case "create_section_view": case "create_sheet": case "create_viewport":
+                    ValidateDocumentation(op); break;
                 case "create_level":
                     Require(op.Name != null && ValidRoomMetadata(op.Name) && op.ElevationMm is double elevation &&
                         double.IsFinite(elevation) && Math.Abs(elevation) <= 1000000 &&
@@ -188,6 +214,31 @@ public sealed class ChangeSet
 
     private static void Require(bool condition, string message)
     { if (!condition) throw new BridgeException("INVALID_OPERATION", message); }
+    private static void ValidateDocumentation(DraftOperation op)
+    {
+        static bool Id(string? value) => !string.IsNullOrWhiteSpace(value) && value.Length <= 200;
+        static bool Text(string? value) => value != null && ValidRoomMetadata(value) && !value.Any(char.IsControl);
+        static bool Coordinate(double value) => double.IsFinite(value) && Math.Abs(value) <= 1000000;
+        Require(op.TypeId == null && op.SchemeId == null && op.ElementId == null && op.Host == null && op.Start == null && op.End == null && op.ArcMid == null && op.Point == null && op.Boundary == null && op.HeightMm == null && op.SillMm == null && op.ElevationMm == null && op.Number == null && op.Value == null && op.RotationDegrees == null && op.StableReferences == null, "Unexpected documentation operation field.");
+        if (op.Kind == "create_viewport")
+        {
+            Require(Id(op.SheetId) && Id(op.ViewId) && Id(op.ViewportTypeId) && op.CenterMm != null && Coordinate(op.CenterMm.X) && Coordinate(op.CenterMm.Y) && op.Name == null && op.ViewFamilyTypeId == null && op.TitleBlockTypeId == null && op.SheetNumber == null && op.Scale == null && op.SectionBox == null, "Viewport requires sheet, view, type and paper centre.");
+            return;
+        }
+        if (op.Kind == "create_sheet")
+        {
+            Require(Text(op.Name) && Text(op.SheetNumber) && Id(op.TitleBlockTypeId) && op.SheetId == null && op.ViewId == null && op.ViewportTypeId == null && op.CenterMm == null && op.ViewFamilyTypeId == null && op.Scale == null && op.SectionBox == null, "Sheet requires name, number and title block type.");
+            return;
+        }
+        Require(Text(op.Name) && Id(op.ViewFamilyTypeId) && op.Scale is >= 1 and <= 1000 && op.TitleBlockTypeId == null && op.SheetId == null && op.ViewId == null && op.ViewportTypeId == null && op.CenterMm == null && op.SheetNumber == null, "View requires name, family type and scale.");
+        Require((op.Kind == "create_section_view") == (op.SectionBox != null), "Only sections require section bounds.");
+        if (op.SectionBox is not { } b) return;
+        Require(b.CenterMm != null && b.Direction != null, "Section frame is required.");
+        var c=b.CenterMm!; var d=b.Direction!; var length=Math.Sqrt(d.X*d.X+d.Y*d.Y);
+        Require(Coordinate(c.X) && Coordinate(c.Y) && Coordinate(c.Z) && Coordinate(d.X) && Coordinate(d.Y) && length >= 0.000001 && new[]{b.WidthMm,b.HeightMm,b.DepthMm}.All(v => double.IsFinite(v) && v is >= 10 and <= 100000), "Invalid section frame or extents.");
+        foreach (var side in new[]{-0.5,0.5}) foreach (var depth in new[]{0.0,1.0}) foreach (var up in new[]{-0.5,0.5})
+            Require(Coordinate(c.X-d.Y/length*side*b.WidthMm+d.X/length*depth*b.DepthMm) && Coordinate(c.Y+d.X/length*side*b.WidthMm+d.Y/length*depth*b.DepthMm) && Coordinate(c.Z+up*b.HeightMm), "Section corners must remain within 1 km.");
+    }
     private static bool ValidRoomMetadata(string value) => value.Length is > 0 and <= 100 &&
         !string.IsNullOrWhiteSpace(value) && value == value.Trim();
     public static double Distance(PointMm a, PointMm b) => Math.Sqrt(Math.Pow(a.X - b.X, 2) + Math.Pow(a.Y - b.Y, 2));

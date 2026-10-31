@@ -37,6 +37,19 @@ internal static class ContractChecks
             LevelId = "level-fixture", Units = "mm", CoordinateFrame = "revit-internal-xy", Title = "Fixture", Operations = ops, PhaseId = phaseId };
         DraftOperation Level(string name, double elevation = 3000) => JsonSerializer.Deserialize<DraftOperation>(
             $$"""{"kind":"create_level","key":"new-level","name":{{JsonSerializer.Serialize(name)}},"elevationMm":{{elevation}}}""", Protocol.Json)!;
+        DraftOperation Documentation(string json) => JsonSerializer.Deserialize<DraftOperation>(json, Protocol.Json)!;
+        var plan = Documentation("{\"kind\":\"create_plan_view\",\"key\":\"plan\",\"name\":\"Plan\",\"viewFamilyTypeId\":\"plan-type\",\"scale\":100}");
+        Make([plan]).Validate();
+        Reject(() => Make([plan, Level("Other")]).Validate(), "UNSUPPORTED_OPERATION_BATCH");
+        var view3d = Documentation("{\"kind\":\"create_3d_view\",\"key\":\"v\",\"name\":\"3D\",\"viewFamilyTypeId\":\"type\",\"scale\":1}");
+        var section = Documentation("{\"kind\":\"create_section_view\",\"key\":\"s\",\"name\":\"Section\",\"viewFamilyTypeId\":\"type\",\"scale\":1000,\"sectionBox\":{\"centerMm\":{\"x\":0,\"y\":0,\"z\":0},\"direction\":{\"x\":1,\"y\":1},\"widthMm\":1000,\"heightMm\":2000,\"depthMm\":500}}");
+        var sheet = Documentation("{\"kind\":\"create_sheet\",\"key\":\"s\",\"name\":\"Sheet\",\"sheetNumber\":\"A1\",\"titleBlockTypeId\":\"type\"}");
+        var viewport = Documentation("{\"kind\":\"create_viewport\",\"key\":\"p\",\"sheetId\":\"sheet\",\"viewId\":\"view\",\"viewportTypeId\":\"type\",\"centerMm\":{\"x\":100,\"y\":100}}");
+        foreach (var op in new[]{view3d, section, sheet, viewport}) Make([op]).Validate();
+        Reject(() => Make([Documentation("{\"kind\":\"create_plan_view\",\"key\":\"p\",\"name\":\"Plan\",\"viewFamilyTypeId\":\"t\",\"scale\":0}")]).Validate(), "INVALID_OPERATION");
+        Reject(() => Make([Documentation("{\"kind\":\"create_sheet\",\"key\":\"s\",\"name\":\" bad\",\"sheetNumber\":\"A1\",\"titleBlockTypeId\":\"t\"}")]).Validate(), "INVALID_OPERATION");
+        Reject(() => Make([Documentation("{\"kind\":\"create_section_view\",\"key\":\"s\",\"name\":\"S\",\"viewFamilyTypeId\":\"t\",\"scale\":100,\"sectionBox\":{\"centerMm\":{\"x\":0,\"y\":0,\"z\":0},\"direction\":{\"x\":0,\"y\":0},\"widthMm\":100,\"heightMm\":100,\"depthMm\":100}}")]).Validate(), "INVALID_OPERATION");
+        Reject(() => Make([viewport, Documentation("{\"kind\":\"create_viewport\",\"key\":\"p2\",\"sheetId\":\"sheet\",\"viewId\":\"view\",\"viewportTypeId\":\"type\",\"centerMm\":{\"x\":200,\"y\":200}}")]).Validate(), "INVALID_OPERATION");
         Make([Level("Level 2")]).Validate();
         Make([Level("Lower", -1000000)]).Validate(); Make([Level("Upper", 1000000)]).Validate();
         Reject(() => Make([Level("")]).Validate(), "INVALID_OPERATION");

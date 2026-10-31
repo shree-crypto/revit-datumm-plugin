@@ -7,6 +7,17 @@ const regionPoint = z.object({x:z.number().finite().min(-1000000).max(1000000),y
 const region = z.object({units:z.literal('mm'),coordinateFrame:z.literal('revit-internal-xyz'),minMm:regionPoint,maxMm:regionPoint}).strict()
   .refine(row=>['x','y','z'].every(axis=>row.minMm[axis as keyof typeof row.minMm]<row.maxMm[axis as keyof typeof row.maxMm]));
 const roomMetadataText = z.string().min(1).max(100).regex(/^\S(?:[\s\S]*\S)?$/);
+const documentationText = z.string().min(1).max(100).regex(/^\S(?:[\s\S]*\S)?$/).refine(value=>!/[\x00-\x1f\x7f-\x9f]/.test(value));
+const sectionBox = z.object({centerMm:regionPoint,direction:point,widthMm:z.number().finite().min(10).max(100000),heightMm:z.number().finite().min(10).max(100000),depthMm:z.number().finite().min(10).max(100000)}).strict().superRefine((box,ctx)=>{
+  const {x,y}=box.direction, length=Math.hypot(x,y);
+  if(length<0.000001){ctx.addIssue({code:z.ZodIssueCode.custom,message:'Section direction must be nonzero.'});return;}
+  const right={x:-y/length,y:x/length}, view={x:x/length,y:y/length};
+  for(const side of [-0.5,0.5]) for(const depth of [0,1]) for(const up of [-0.5,0.5])
+    if(Math.abs(box.centerMm.x+right.x*side*box.widthMm+view.x*depth*box.depthMm)>1000000 || Math.abs(box.centerMm.y+right.y*side*box.widthMm+view.y*depth*box.depthMm)>1000000 || Math.abs(box.centerMm.z+up*box.heightMm)>1000000)
+      ctx.addIssue({code:z.ZodIssueCode.custom,message:'Section corners must remain within 1 km.'});
+});
+const docKinds=['create_plan_view','create_3d_view','create_section_view','create_sheet','create_viewport'] as const;
+const viewFields={key,name:documentationText,viewFamilyTypeId:id,scale:z.number().int().min(1).max(1000)};
 const setRoomMetadata = z.union([
   z.object({ kind: z.literal('set_room_metadata'), key, elementId: id, name: roomMetadataText, number: roomMetadataText.optional() }).strict(),
   z.object({ kind: z.literal('set_room_metadata'), key, elementId: id, number: roomMetadataText, name: roomMetadataText.optional() }).strict(),
@@ -21,6 +32,11 @@ const wall = z.object({ kind: z.literal('wall'), key, typeId: id, start: point, 
       ctx.addIssue({code:z.ZodIssueCode.custom,message:'Arc points must be distinct and non-collinear.'});
   });
 export const operation = z.union([
+  z.object({kind:z.literal('create_plan_view'),...viewFields}).strict(),
+  z.object({kind:z.literal('create_3d_view'),...viewFields}).strict(),
+  z.object({kind:z.literal('create_section_view'),...viewFields,sectionBox}).strict(),
+  z.object({kind:z.literal('create_sheet'),key,name:documentationText,sheetNumber:documentationText,titleBlockTypeId:id}).strict(),
+  z.object({kind:z.literal('create_viewport'),key,sheetId:id,viewId:id,viewportTypeId:id,centerMm:point}).strict(),
   z.object({kind:z.literal('create_level'),key,name:z.string().min(1).max(100).regex(/^\S(?:[\s\S]*\S)?$/),elevationMm:z.number().finite().min(-1000000).max(1000000)}).strict(),
   wall,
   z.object({ kind: z.literal('floor'), key, typeId: id, boundary: z.array(point).min(3).max(64) }).strict(),
@@ -43,6 +59,10 @@ export const changeSet = z.object({ documentId: z.string().uuid(), expectedRevis
   phaseId:id.optional(),operations: z.array(operation).min(1).max(100) }).strict()
   .refine(row=>!row.phaseId || row.operations.every(op=>op.kind==='door'),{message:'Phase-bound change sets support door-only batches.',path:['operations']})
   .refine(row=>!row.operations.some(op=>op.kind==='create_level') || row.operations.every(op=>op.kind==='create_level'),{message:'Level creation requires a level-only batch.',path:['operations']})
+  .refine(row=>!row.operations.some(op=>(docKinds as readonly string[]).includes(op.kind)) || row.operations.every(op=>op.kind===row.operations[0]?.kind),{message:'Documentation creation requires a homogeneous batch.',path:['operations']})
+  .refine(row=>{const names=row.operations.filter(op=>op.kind==='create_plan_view'||op.kind==='create_3d_view'||op.kind==='create_section_view').map(op=>op.name.toUpperCase());return new Set(names).size===names.length;},{message:'View names must be unique.',path:['operations']})
+  .refine(row=>{const numbers=row.operations.filter(op=>op.kind==='create_sheet').map(op=>op.sheetNumber.toUpperCase());return new Set(numbers).size===numbers.length;},{message:'Sheet numbers must be unique.',path:['operations']})
+  .refine(row=>{const views=row.operations.filter(op=>op.kind==='create_viewport').map(op=>op.viewId);return new Set(views).size===views.length;},{message:'A view may be placed only once.',path:['operations']})
   .refine(row=>{const names=row.operations.filter(op=>op.kind==='create_level').map(op=>op.name.toUpperCase());return new Set(names).size===names.length;},{message:'Level names must be unique within the batch.',path:['operations']});
 export const draftingTools = {
   get_native_capabilities: {description:'Read native operation schema, supported placements, build and bounded limits. Required before new operation dispatch. Optional mirrorProbe checks only the exact inspected root set for native eligibility; it does not mirror, qualify a plane, verify dimensions or perform rollback.',
@@ -58,7 +78,7 @@ export const draftingTools = {
   get_model_inventory: { description: 'Read native wall/floor/door/window/room counts and paginated room areas, optionally scoped to an explicit level UniqueId. No model changes.',
     schema: z.object({ sessionId: z.string().uuid(), levelId: id.optional(), offset: z.number().int().nonnegative().optional(), limit: z.number().int().min(1).max(100).optional() }).strict() },
   get_model_views: { description: 'Page host floor-plan views, existing room color fill schemes, levels, phases or Revit link instances. Link transforms and loaded state are reported, but linked contents are not inspected. No model changes.',
-    schema: z.object({ sessionId: z.string().uuid(), kind: z.enum(['plans','room-color-schemes','links','levels','phases']), offset: z.number().int().nonnegative().optional(), limit: z.number().int().min(1).max(100).optional() }).strict() },
+    schema: z.object({ sessionId: z.string().uuid(), kind: z.enum(['plans','room-color-schemes','links','levels','phases','view-family-types','title-block-types','viewport-types','views','sheets','viewports']), offset: z.number().int().nonnegative().optional(), limit: z.number().int().min(1).max(100).optional() }).strict() },
   get_model_quantities: { description: 'Aggregate selected host category/level instances by native type. Return known-value counts and wall-centerline, native area and volume sums with explicit units and exclusions. At most 5000 host instances; no linked or material-layer quantities.',
     schema: z.object({sessionId:z.string().uuid(),categories:z.array(z.enum(['walls','floors','doors','windows','rooms'])).min(1).max(5).refine(items=>new Set(items).size===items.length),
       levelId:id.optional(),offset:z.number().int().nonnegative().optional(),limit:z.number().int().min(1).max(100).optional()}).strict()},
@@ -92,6 +112,20 @@ const receipt = z.object({ operationId: z.string().uuid(), proposalHash: z.strin
 const deletion = z.object({ key, targetId:id, elements:z.array(z.object({nativeId:z.number().int(),id,kind:z.enum(['wall','floor','door','window','room','room_tag','dimension','family_instance','nested_component']),name:z.string()}).strict()).min(1).max(64) }).strict();
 const vector=z.object({x:z.number().finite(),y:z.number().finite(),z:z.number().finite()}).strict();
 const pointReadback=z.object({x:z.number().finite(),y:z.number().finite()}).strict();
+const outline=z.object({min:pointReadback,max:pointReadback}).strict().refine(box=>box.min.x<=box.max.x && box.min.y<=box.max.y);
+const titleBlock=z.object({id,elementKind:z.literal('title_block'),ownerViewId:id,typeId:id,missing:z.literal(false)}).strict();
+const sheetReadback=z.object({id,elementKind:z.literal('sheet'),missing:z.literal(false),name:z.string(),sheetNumber:z.string(),isPlaceholder:z.boolean(),outlineMm:outline,titleBlocks:z.array(titleBlock).max(64)}).strict();
+const viewportReadback=z.object({id,elementKind:z.literal('viewport'),missing:z.literal(false),sheetId:id,viewId:id,viewportTypeId:id,centerMm:pointReadback,rotation:z.enum(['None','Clockwise','Counterclockwise']),boxOutlineMm:outline}).strict();
+const viewReadbackFields={id,missing:z.literal(false),name:z.string(),viewFamilyTypeId:id,scale:z.number().int().positive(),isTemplate:z.literal(false),viewTemplateId:id.nullable(),discipline:z.string()};
+const placementStatus=z.enum(['NotApplicable','NotPlaced','PartiallyPlaced','CompletelyPlaced']);
+const discoveredView=z.union([
+  z.object({...viewReadbackFields,elementKind:z.literal('plan_view'),viewType:z.literal('FloorPlan'),levelId:id,typeId:id.nullable().optional(),roomColorSchemeId:id.nullable().optional(),roomColorSchemeName:z.string().nullable().optional(),placementStatus}).strict(),
+  z.object({...viewReadbackFields,elementKind:z.literal('view_3d'),viewType:z.literal('ThreeD'),isPerspective:z.literal(false),placementStatus}).strict(),
+  z.object({...viewReadbackFields,elementKind:z.literal('section_view'),viewType:z.literal('Section'),originMm:vector,viewDirection:vector,upDirection:vector,cropActive:z.boolean(),cropCornersMm:z.array(vector).length(8),farClipMm:z.number().finite(),placementStatus}).strict(),
+]);
+const directView3d=z.object({...viewReadbackFields,elementKind:z.literal('view_3d'),viewType:z.literal('ThreeD'),isPerspective:z.literal(false)}).strict();
+const directSection=z.object({...viewReadbackFields,elementKind:z.literal('section_view'),viewType:z.literal('Section'),originMm:vector,viewDirection:vector,upDirection:vector,cropActive:z.boolean(),cropCornersMm:z.array(vector).length(8),farClipMm:z.number().finite()}).strict();
+const directPlan=z.object({...viewReadbackFields,elementKind:z.literal('plan_view'),viewType:z.literal('FloorPlan'),levelId:id,typeId:id.nullable(),roomColorSchemeId:id.nullable(),roomColorSchemeName:z.string().nullable()}).strict();
 const curveReadback=z.object({start:pointReadback,end:pointReadback,lengthMm:z.number().finite().positive().optional(),center:pointReadback.nullable().optional(),
   radiusMm:z.number().finite().positive().nullable().optional(),mid:pointReadback.nullable().optional(),normal:vector.nullable().optional()}).strict();
 const completeCurveEvidence=curveReadback.superRefine((curve,ctx)=>{
@@ -114,6 +148,9 @@ const nativeElement=z.object({curveKind:z.string().nullable().optional(),curve:c
   roomCurveBoundaryStatus:z.enum(['not_a_room','complete','incomplete','unavailable_or_unenclosed','too_large','unavailable']).optional(),
   roomBoundaryCurves:roomBoundaryCurves.nullable().optional()}).passthrough()
   .superRefine((row,ctx)=>{
+    const direct:Record<string,z.ZodType>={view_3d:directView3d,section_view:directSection,sheet:sheetReadback,viewport:viewportReadback,title_block:titleBlock};
+    if(typeof row.elementKind==='string' && ((row.elementKind==='plan_view' && 'viewFamilyTypeId' in row && !directPlan.safeParse(row).success) || (direct[row.elementKind] && !direct[row.elementKind]!.safeParse(row).success)))
+      ctx.addIssue({code:z.ZodIssueCode.custom,message:'Documentation readback requires its exact measured fields.'});
     if(row.elementKind==='level' && !levelReadback.safeParse(row).success)
       ctx.addIssue({code:z.ZodIssueCode.custom,message:'Level readback requires an ID, name and finite elevation.'});
     if(row.curveKind==='Arc'&&row.curve){
@@ -162,7 +199,7 @@ export function validCommandResponse(tool: string, data: unknown): boolean {
     get_model_inventory: z.object({ ...identity, title: z.string(), scope: z.enum(['document','level']), levelId: z.string().nullable(),
       counts: z.object({ walls: z.number().int().nonnegative(), floors: z.number().int().nonnegative(), doors: z.number().int().nonnegative(), windows: z.number().int().nonnegative(), rooms: z.number().int().nonnegative() }).strict(),
       evidence:evidence.optional(),rooms: z.array(z.object({ id: z.string(), name: z.string(), number: z.string(), areaM2: z.number().nonnegative(), levelId: z.string().nullable(), enclosed: z.boolean() }).strict()).max(100), totalRooms: z.number().int().nonnegative(), nextOffset: z.number().int().nullable() }).strict(),
-    get_model_views: z.object({ ...identity, kind:z.enum(['plans','room-color-schemes','links','levels','phases']),total:z.number().int().nonnegative(),nextOffset:z.number().int().nonnegative().nullable(),
+    get_model_views: z.object({ ...identity, kind:z.enum(['plans','room-color-schemes','links','levels','phases','view-family-types','title-block-types','viewport-types','views','sheets','viewports']),total:z.number().int().nonnegative().max(5000),nextOffset:z.number().int().nonnegative().nullable(),
       evidence:evidence.optional(),plans:z.array(z.object({id,name:z.string(),viewType:z.literal('FloorPlan'),isTemplate:z.literal(false).optional(),levelId:z.string().nullable(),
         roomColorSchemeId:z.string().nullable().optional(),roomColorSchemeName:z.string().nullable().optional(),
         scale:z.number().int().positive(),cropActive:z.boolean(),evidence:evidence.optional()}).strict()).max(100),
@@ -172,9 +209,17 @@ export function validCommandResponse(tool: string, data: unknown): boolean {
         basisX:z.object({x:z.number(),y:z.number(),z:z.number()}).strict(),basisY:z.object({x:z.number(),y:z.number(),z:z.number()}).strict(),basisZ:vector.optional()}).strict()).max(100),
       levels:z.array(z.object({id:z.string(),name:z.string(),elevationMm:z.number()}).strict()).max(100),
       phases:z.array(z.object({id:z.string(),name:z.string(),sequence:z.number().int().nonnegative()}).strict()).max(100),
+      viewFamilyTypes:z.array(z.object({id,name:z.string(),viewFamily:z.enum(['FloorPlan','ThreeDimensional','Section']),defaultTemplateId:id.nullable()}).strict()).max(100).optional(),
+      titleBlockTypes:z.array(z.object({id,name:z.string(),family:z.string(),paperWidthMm:z.number().finite().nullable(),paperHeightMm:z.number().finite().nullable()}).strict()).max(100).optional(),
+      viewportTypes:z.array(z.object({id,name:z.string()}).strict()).max(100).optional(),
+      views:z.array(discoveredView).max(100).optional(),sheets:z.array(sheetReadback).max(100).optional(),viewports:z.array(viewportReadback).max(100).optional(),
       limitations:z.array(z.string())}).strict().superRefine((row,ctx)=>{
         if(row.kind==='room-color-schemes' && !row.roomColorSchemes)
           ctx.addIssue({code:z.ZodIssueCode.custom,message:'Room color scheme reads must include the native roomColorSchemes catalog.'});
+        const arrays={'view-family-types':'viewFamilyTypes','title-block-types':'titleBlockTypes','viewport-types':'viewportTypes',views:'views',sheets:'sheets',viewports:'viewports'} as const;
+        for(const [kind,field] of Object.entries(arrays))
+          if((row.kind===kind)!==(row[field as (typeof arrays)[keyof typeof arrays]] !== undefined))
+            ctx.addIssue({code:z.ZodIssueCode.custom,message:'Documentation response must include only its matching array.'});
       }),
     get_model_quantities:z.object({...identity,scope:z.enum(['document','level']),levelId:z.string().nullable(),categories:z.array(z.string()),
       evidence:evidence.optional(),inspectedHostElements:z.number().int().nonnegative(),totalGroups:z.number().int().nonnegative(),nextOffset:z.number().int().nonnegative().nullable(),

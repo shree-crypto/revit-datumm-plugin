@@ -154,11 +154,14 @@ export class BridgeClient {
       const phaseContract=command.tool==='preview_changes'&&command.arguments?.phaseId!==undefined;
       const warningContract=command.tool==='get_model_warnings';
       const roomBoundaryContract=command.tool==='get_room_boundaries';
+      const documentationKinds=['create_plan_view','create_3d_view','create_section_view','create_sheet','create_viewport'];
+      const documentationRead=command.tool==='get_model_views'&&['view-family-types','title-block-types','viewport-types','views','sheets','viewports'].includes(command.arguments?.kind ?? '');
+      const documentationWrite=command.tool==='preview_changes'&&command.arguments?.operations?.some(op=>documentationKinds.includes(op.kind));
       const extended = ['get_native_capabilities','get_dimension_references'].includes(command.tool) ||
         !!command.arguments?.viewId && command.tool === 'get_model_elements' ||
         !!command.arguments?.phaseId && command.tool === 'get_model_elements' ||
         command.tool === 'get_model_views' && command.arguments?.kind === 'room-color-schemes' ||
-        command.tool === 'preview_changes' && command.arguments?.operations?.some(op=>['dimension','family_instance','set_room_color_scheme','create_level'].includes(op.kind)) || arcContract || phaseContract || warningContract || roomBoundaryContract;
+        command.tool === 'preview_changes' && command.arguments?.operations?.some(op=>['dimension','family_instance','set_room_color_scheme','create_level'].includes(op.kind)) || arcContract || phaseContract || warningContract || roomBoundaryContract || documentationRead || documentationWrite;
       const roomColorContract = command.tool === 'get_model_views' && command.arguments?.kind === 'room-color-schemes' ||
         command.tool === 'preview_changes' && command.arguments?.operations?.some(op=>op.kind === 'set_room_color_scheme');
       if (roomColorContract && !extended) throw new BridgeError('UPGRADE_REQUIRED','Install the matching MCP and Revit bridge before using room color schemes.');
@@ -172,11 +175,13 @@ export class BridgeClient {
           if(!manifest.ok||!Array.isArray(manifest.data?.supportedReads)||!manifest.data.supportedReads.includes(requiredRead))
             throw new BridgeError('UPGRADE_REQUIRED',`Installed plugin does not support the exact ${requiredRead} read contract.`);
         }
-        if (command.tool === 'preview_changes' || roomColorContract) {
+        if (command.tool === 'preview_changes' || roomColorContract || documentationRead) {
           const manifest = await this.request(descriptor,'command',25000,{tool:'get_native_capabilities',arguments:{}});
           const version=manifest.data?.operationSchemaVersion;
           const operations=command.tool === 'preview_changes' ? command.arguments?.operations : [];
           if (!manifest.ok || ![2,3,4].includes(version as number) || roomColorContract && ![3,4].includes(version as number) ||
+            (documentationRead || documentationWrite) && version !== 4 ||
+            documentationRead && (!Array.isArray(manifest.data?.operationKinds) || !documentationKinds.every(kind=>(manifest.data!.operationKinds as string[]).includes(kind))) ||
             arcContract && (version !== 4 || !Array.isArray(manifest.data?.wallCurveKinds) || !['line','arc'].every(kind=>(manifest.data!.wallCurveKinds as string[]).includes(kind))) ||
             phaseContract && (version !== 4 || !Array.isArray(manifest.data?.phaseBoundOperationKinds) || !(manifest.data!.phaseBoundOperationKinds as string[]).includes('door')) ||
             !Array.isArray(manifest.data?.operationKinds) ||

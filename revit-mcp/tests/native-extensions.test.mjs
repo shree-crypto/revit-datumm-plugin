@@ -8,6 +8,78 @@ import {join} from 'node:path';
 import {BridgeClient} from '../dist/bridge.js';
 import {operation,draftingTools,validCommandResponse} from '../dist/drafting.js';
 
+test('documentation operations enforce exact geometry, fields and homogeneous batches',()=>{
+  const plan={kind:'create_plan_view',key:'p',name:'Plan',viewFamilyTypeId:'plan-type',scale:100};
+  const three={...plan,kind:'create_3d_view',key:'3d'};
+  const section={...plan,kind:'create_section_view',key:'s',sectionBox:{centerMm:{x:0,y:0,z:0},direction:{x:1,y:1},widthMm:1000,heightMm:2000,depthMm:500}};
+  const sheet={kind:'create_sheet',key:'sheet',name:'Sheet',sheetNumber:'A101',titleBlockTypeId:'title-type'};
+  const viewport={kind:'create_viewport',key:'vp',sheetId:'sheet-id',viewId:'view-id',viewportTypeId:'vp-type',centerMm:{x:100,y:100}};
+  for(const op of [plan,three,section,sheet,viewport]) assert(operation.safeParse(op).success,op.kind);
+  for(const edit of [{scale:0},{scale:1001},{scale:1.5},{name:' bad'},{name:'bad\nname'},{typeId:'physical'}]) assert(!operation.safeParse({...plan,...edit}).success);
+  for(const box of [{...section.sectionBox,direction:{x:0,y:0}},{...section.sectionBox,widthMm:9},{...section.sectionBox,centerMm:{x:1000000,y:0,z:0}},{...section.sectionBox,extra:1}]) assert(!operation.safeParse({...section,sectionBox:box}).success);
+  assert(!operation.safeParse({...viewport,centerMm:{x:0,y:0,z:0}}).success);
+  const base={sessionId:randomUUID(),documentId:randomUUID(),expectedRevision:0,levelId:'level',units:'mm',coordinateFrame:'revit-internal-xy',title:'Documentation'};
+  for(const op of [plan,three,section,sheet,viewport]) assert(draftingTools.preview_changes.schema.safeParse({...base,operations:[op]}).success);
+  assert(!draftingTools.preview_changes.schema.safeParse({...base,operations:[plan,three]}).success);
+  assert(!draftingTools.preview_changes.schema.safeParse({...base,operations:[plan,{...plan,key:'p2',name:'plan'}]}).success);
+  assert(!draftingTools.preview_changes.schema.safeParse({...base,operations:[viewport,{...viewport,key:'vp2'}]}).success);
+  assert(!draftingTools.preview_changes.schema.safeParse({...base,operations:[sheet,{...sheet,key:'s2',sheetNumber:'a101'}]}).success);
+});
+
+test('documentation preview refuses old plugin before dispatch',async()=>{
+  const sessionId=randomUUID(),documentId=randomUUID(),directory=await mkdtemp(join(tmpdir(),'datumm-documentation-'));let dispatched=0;
+  const server=createServer(async(req,res)=>{
+    let data;if(req.url==='/health')data={service:'datumm-revit',pluginVersion:'0.2.0-alpha.8',revitVersion:'simulated',processId:42,capabilities:['get_native_capabilities'],readOnly:false};
+    else{let body='';for await(const chunk of req)body+=chunk;const request=JSON.parse(body);
+      if(request.tool==='get_native_capabilities')data={documentId,revision:0,schemaVersion:1,operationSchemaVersion:4,minimumMcpVersion:'0.2.0-alpha.5',pluginVersion:'old',revitBuild:'simulated',operationKinds:['wall'],placementSupport:[],limits:{operations:100,pageSize:100,dimensionReferences:8,imageBytes:1500000,imagePixels:2048},limitations:[]};
+      else {dispatched++;data={};}}
+    res.setHeader('content-type','application/json');res.end(JSON.stringify({protocolVersion:'1',sessionId,operationId:req.headers['x-operation-id'],ok:true,data,error:null}));
+  });
+  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+  try{await writeFile(join(directory,sessionId+'.json'),JSON.stringify({protocolVersion:'1',sessionId,processId:42,baseUrl:`http://127.0.0.1:${server.address().port}/`,token:'b'.repeat(64),pluginVersion:'0.2.0-alpha.8',revitVersion:'simulated',startedAt:new Date().toISOString()}));
+    const client=new BridgeClient(directory);
+    await assert.rejects(client.call('command',sessionId,{tool:'preview_changes',arguments:{operations:[{kind:'create_plan_view',key:'p',name:'Plan',viewFamilyTypeId:'type',scale:100}]}}),error=>error.code==='UPGRADE_REQUIRED');
+    assert.equal(dispatched,0);
+  }finally{await new Promise(resolve=>server.close(resolve));await rm(directory,{recursive:true,force:true});}
+});
+
+test('documentation discovery requires a strict matching result array',()=>{
+  const common={documentId:randomUUID(),revision:1,total:1,nextOffset:null,plans:[],links:[],levels:[],phases:[],limitations:[]};
+  const types={...common,kind:'view-family-types',viewFamilyTypes:[{id:'id',name:'Floor',viewFamily:'FloorPlan',defaultTemplateId:null}]};
+  assert(draftingTools.get_model_views.schema.safeParse({sessionId:randomUUID(),kind:'view-family-types'}).success);
+  assert(validCommandResponse('get_model_views',types));
+  assert(!validCommandResponse('get_model_views',{...types,viewFamilyTypes:[{...types.viewFamilyTypes[0],extra:true}]}));
+  assert(!validCommandResponse('get_model_views',{...types,kind:'viewport-types'}));
+  const pages=[
+    ['title-block-types','titleBlockTypes',{id:'t',name:'A1',family:'Title',paperWidthMm:null,paperHeightMm:null}],
+    ['viewport-types','viewportTypes',{id:'t',name:'Viewport'}],
+    ['views','views',{id:'v',elementKind:'view_3d',missing:false,name:'3D',viewFamilyTypeId:'t',viewType:'ThreeD',scale:100,isTemplate:false,viewTemplateId:null,discipline:'Architectural',isPerspective:false,placementStatus:'NotPlaced'}],
+    ['sheets','sheets',{id:'s',elementKind:'sheet',missing:false,name:'Sheet',sheetNumber:'A1',isPlaceholder:false,outlineMm:{min:{x:0,y:0},max:{x:500,y:300}},titleBlocks:[]}],
+    ['viewports','viewports',{id:'p',elementKind:'viewport',missing:false,sheetId:'s',viewId:'v',viewportTypeId:'t',centerMm:{x:100,y:100},rotation:'None',boxOutlineMm:{min:{x:50,y:50},max:{x:150,y:150}}}],
+  ];
+  for(const [kind,field,item] of pages){const page={...common,kind,[field]:[item]};assert(validCommandResponse('get_model_views',page),kind);assert(!validCommandResponse('get_model_views',{...page,[field]:[{...item,extra:true}]}),kind);}
+  const plan={id:'v',elementKind:'plan_view',missing:false,name:'Plan',viewFamilyTypeId:'t',viewType:'FloorPlan',scale:100,isTemplate:false,viewTemplateId:null,discipline:'Architectural',levelId:'level',typeId:'t',roomColorSchemeId:null,roomColorSchemeName:null};
+  assert(validCommandResponse('get_model_views',{...common,kind:'views',views:[{...plan,placementStatus:'NotPlaced'}]}));
+  const receipt={operationId:randomUUID(),proposalHash:'a'.repeat(64),documentId:common.documentId,state:'committed',elementIds:['v'],warnings:[],error:null,updatedAt:new Date().toISOString()};
+  assert(validCommandResponse('apply_change_set',{receipt,revision:1,elements:[{key:'v',element:plan}]}));
+});
+
+test('documentation direct readback requires exact measured fields',()=>{
+  const receipt={operationId:randomUUID(),proposalHash:'a'.repeat(64),documentId:randomUUID(),state:'committed',elementIds:['v'],warnings:[],error:null,updatedAt:new Date().toISOString()};
+  const view={id:'v',elementKind:'view_3d',missing:false,name:'3D',viewFamilyTypeId:'t',viewType:'ThreeD',scale:100,isTemplate:false,viewTemplateId:null,discipline:'Architectural',isPerspective:false};
+  const result={receipt,revision:3,elements:[{key:'v',element:view}]};
+  assert(validCommandResponse('apply_change_set',result));
+  assert(!validCommandResponse('apply_change_set',{...result,elements:[{key:'v',element:{...view,missing:true}}]}));
+  assert(!validCommandResponse('apply_change_set',{...result,elements:[{key:'v',element:{...view,extra:true}}]}));
+});
+
+test('capability response supports exactly twenty operation kinds',()=>{
+  const kinds=['create_level','wall','floor','door','window','room','room_tag','dimension','family_instance','move','set_comments','set_room_metadata','set_room_color_scheme','change_type','delete','create_plan_view','create_3d_view','create_section_view','create_sheet','create_viewport'];
+  const caps={documentId:randomUUID(),revision:0,schemaVersion:1,operationSchemaVersion:4,minimumMcpVersion:'0.2.0-alpha.5',pluginVersion:'0.2.0-alpha.10',revitBuild:'simulated',operationKinds:kinds,placementSupport:[],limits:{operations:100,pageSize:100,dimensionReferences:8,imageBytes:1500000,imagePixels:2048},limitations:[]};
+  assert(validCommandResponse('get_native_capabilities',caps));
+  assert(!validCommandResponse('get_native_capabilities',{...caps,operationKinds:[...kinds,'extra']}));
+});
+
 test('wall curve normalizes only the documented Revit geometry-input exception',async()=>{
   const source=await readFile(new URL('../../revit-plugin/src/Datumm.Revit/NativeExtensions.cs',import.meta.url),'utf8');
   const wallCurve=source.slice(source.indexOf('internal static Curve WallCurve'),source.indexOf('public static ViewPlan Plan'));

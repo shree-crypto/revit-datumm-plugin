@@ -223,9 +223,11 @@ internal sealed class DraftingService
         var doc = app.ActiveUIDocument?.Document ?? throw Error("NO_ACTIVE_DOCUMENT", "Open the target project.");
         Check(doc, dispatcher, proposal.Changes);
         if (proposal.Expires < DateTimeOffset.UtcNow) throw Error("PROPOSAL_EXPIRED", "Preview again.");
+        var coordinateDescription = proposal.Changes.Operations.All(op => op.Kind == "create_viewport")
+            ? "sheet paper XY coordinates" : "internal XY origin";
         var dialog = new TaskDialog("DATUMM — approve exact changes") {
             MainInstruction = proposal.Changes.Title,
-            MainContent = $"Project: {doc.Title}\nOperations: {proposal.Changes.Operations.Length}\nUnits: mm; internal XY origin; context level: {Get<Level>(doc, proposal.Changes.LevelId).Name}\nHash: {proposal.Hash}\nNo file save is requested. Expand details to review every operation.",
+            MainContent = $"Project: {doc.Title}\nOperations: {proposal.Changes.Operations.Length}\nUnits: mm; {coordinateDescription}; context level: {Get<Level>(doc, proposal.Changes.LevelId).Name}\nHash: {proposal.Hash}\nNo file save is requested. Expand details to review every operation.",
             ExpandedContent = JsonSerializer.Serialize(new { proposal.Changes, proposal.Deletions },
                 new JsonSerializerOptions(Protocol.Json) { WriteIndented = true }),
             CommonButtons = TaskDialogCommonButtons.Yes | TaskDialogCommonButtons.No,
@@ -404,6 +406,8 @@ internal sealed class DraftingService
     {
         if (changes.Operations.Any(op => op.Kind == "delete") && changes.Operations.Length != 1)
             throw Error("UNSUPPORTED_DELETE", "Delete one inspected target per independently verified batch.");
+        if (changes.Operations.Any(op => DocumentationService.IsOperationKind(op.Kind)))
+            DocumentationService.Preflight(doc, changes);
         var walls = new HashSet<string>();
         var requestedRoomTags = new HashSet<string>();
         var levelNames = changes.Operations.Any(op => op.Kind == "create_level")
@@ -413,6 +417,8 @@ internal sealed class DraftingService
         {
             switch (op.Kind)
             {
+                case "create_plan_view": case "create_3d_view": case "create_section_view": case "create_sheet": case "create_viewport":
+                    break; // The complete documentation batch was checked above.
                 case "create_level":
                     if (!levelNames!.Add(op.Name!)) throw Error("DUPLICATE_LEVEL_NAME", "Level name already exists; inspect and preview again.");
                     break;
@@ -667,6 +673,8 @@ internal sealed class DraftingService
                     Element element;
                     switch (op.Kind)
                     {
+                        case "create_plan_view": case "create_3d_view": case "create_section_view": case "create_sheet": case "create_viewport":
+                            element = DocumentationService.Create(doc, op, level); break;
                         case "create_level":
                             var newLevel = Level.Create(doc, Feet(op.ElevationMm!.Value));
                             newLevel.Name = op.Name!; element = newLevel; break;
@@ -769,6 +777,8 @@ internal sealed class DraftingService
             {
                 if (op.Kind == "delete") continue;
                 var element = created[op.Key];
+                if (DocumentationService.IsOperationKind(op.Kind))
+                    DocumentationService.Verify(doc, op, element, Get<Level>(doc, p.Changes.LevelId));
                 if (op.Kind == "create_level" && (element is not Level verifiedLevel || verifiedLevel.Name != op.Name ||
                     Math.Abs(Mm(verifiedLevel.ProjectElevation) - op.ElevationMm!.Value) > 0.001))
                     throw Error("VERIFY_FAILED", "Level name or project elevation read-back mismatch.");
@@ -798,9 +808,10 @@ internal sealed class DraftingService
                     checkedTag.Room?.UniqueId != op.ElementId || checkedTag.OwnerViewId != Get<ViewPlan>(doc, op.ViewId).Id))
                     throw Error("VERIFY_FAILED", "Room tag native linkage does not match the proposal.");
             }
+            var auxiliaries = created.Values.SelectMany(DocumentationService.AuxiliaryElements).ToArray();
             var details = created.Select(kv => new { key = kv.Key, element = Describe(kv.Value) }).ToArray();
             cancellation.ThrowIfCancellationRequested();
-            var ids = created.Values.Select(e => e.UniqueId).Distinct().ToArray();
+            var ids = created.Values.Concat(auxiliaries).Select(e => e.UniqueId).Distinct().ToArray();
             var deletedIds = p.Deletions.SelectMany(d => d.Elements.Select(e => e.Id)).ToArray();
             if (request.DryRun) {
                 rollbackConfirmed = group.RollBack() == TransactionStatus.RolledBack;
@@ -823,7 +834,8 @@ internal sealed class DraftingService
                         .Concat(deleted).ToDictionary(kv => kv.Key, kv => kv.Value),
                     Version = 2,
                     CreatedElementIds = created.Where(kv => !p.Changes.Operations.Any(op => op.Key == kv.Key &&
-                        op.Kind is "move" or "set_comments" or "set_room_metadata" or "set_room_color_scheme" or "change_type")).Select(kv => kv.Value.UniqueId).Distinct().ToArray(),
+                        op.Kind is "move" or "set_comments" or "set_room_metadata" or "set_room_color_scheme" or "change_type")).Select(kv => kv.Value.UniqueId)
+                        .Concat(auxiliaries.Select(e => e.UniqueId)).Distinct().ToArray(),
                     ModifiedElementIds = created.Where(kv => p.Changes.Operations.Any(op => op.Key == kv.Key &&
                         op.Kind is "move" or "set_comments" or "set_room_metadata" or "set_room_color_scheme" or "change_type")).Select(kv => kv.Value.UniqueId).Distinct().ToArray(),
                     DeletedElementIds = deletedIds };
@@ -860,6 +872,7 @@ internal sealed class DraftingService
     }
     private static object Describe(Element e)
     {
+        if (DocumentationService.Describe(e) is { } documentation) return documentation;
         if (e is Level level) return new { id = level.UniqueId, name = level.Name,
             elementKind = "level", elevationMm = Mm(level.ProjectElevation), missing = false };
         var relatedRooms = DoorWindowRooms(e);

@@ -23,11 +23,12 @@ internal static class NativeExtensions
         wallCurveKinds = new[] { "line", "arc" },
         roomBoundaryCurveKinds = new[] { "line", "arc" },
         phaseBoundOperationKinds = new[] { "door" },
-        operationKinds = new[] { "create_level", "wall", "floor", "door", "window", "room", "room_tag", "dimension", "family_instance", "move", "set_comments", "set_room_metadata", "set_room_color_scheme", "change_type", "delete" },
+        operationKinds = new[] { "create_level", "wall", "floor", "door", "window", "room", "room_tag", "dimension", "family_instance", "move", "set_comments", "set_room_metadata", "set_room_color_scheme", "change_type", "delete", "create_plan_view", "create_3d_view", "create_section_view", "create_sheet", "create_viewport" },
         placementSupport = new[] { "wall-hosted-openings", "non-hosted-OneLevelBased-furniture", "host-straight-wall-planar-side-face-linear-dimensions" },
         limits = new { operations = 100, pageSize = 100, dimensionReferences = 8, imageBytes = 1500000, imagePixels = 2048 },
         limitations = new[] { "Host document only. No linked references, arbitrary family loading, face/workplane furniture, chained dimension editing or native execution from pixels.",
-            "Room color assignment selects an existing nonempty OST_Rooms color fill scheme for a host floor-plan view; entries and legends are not created or edited." }
+            "Room color assignment selects an existing nonempty OST_Rooms color fill scheme for a host floor-plan view; entries and legends are not created or edited.",
+            "Viewport placement verifies content boxes only; labels and reserved title-block regions are not checked." }
     };
     internal static Curve WallCurve(Autodesk.Revit.ApplicationServices.Application application, DraftOperation operation, Level level)
     {

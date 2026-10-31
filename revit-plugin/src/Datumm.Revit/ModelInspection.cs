@@ -102,6 +102,7 @@ internal static class ModelInspection
     }
     public static object Views(Document doc, ReadDispatcher dispatcher, JsonElement args)
     {
+        if (DocumentationService.Views(doc, dispatcher, args) is { } documentation) return documentation;
         var kind = args.GetProperty("kind").GetString();
         if (kind is not ("plans" or "room-color-schemes" or "links" or "levels" or "phases"))
             throw new BridgeException("INVALID_REQUEST", "Choose plans, room-color-schemes, links, levels or phases.");
