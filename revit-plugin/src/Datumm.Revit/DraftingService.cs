@@ -225,7 +225,7 @@ internal sealed class DraftingService
         if (proposal.Expires < DateTimeOffset.UtcNow) throw Error("PROPOSAL_EXPIRED", "Preview again.");
         var dialog = new TaskDialog("DATUMM — approve exact changes") {
             MainInstruction = proposal.Changes.Title,
-            MainContent = $"Project: {doc.Title}\nOperations: {proposal.Changes.Operations.Length}\nUnits: mm; internal XY origin; level: {Get<Level>(doc, proposal.Changes.LevelId).Name}\nHash: {proposal.Hash}\nNo file save is requested. Expand details to review every operation.",
+            MainContent = $"Project: {doc.Title}\nOperations: {proposal.Changes.Operations.Length}\nUnits: mm; internal XY origin; context level: {Get<Level>(doc, proposal.Changes.LevelId).Name}\nHash: {proposal.Hash}\nNo file save is requested. Expand details to review every operation.",
             ExpandedContent = JsonSerializer.Serialize(new { proposal.Changes, proposal.Deletions },
                 new JsonSerializerOptions(Protocol.Json) { WriteIndented = true }),
             CommonButtons = TaskDialogCommonButtons.Yes | TaskDialogCommonButtons.No,
@@ -406,10 +406,16 @@ internal sealed class DraftingService
             throw Error("UNSUPPORTED_DELETE", "Delete one inspected target per independently verified batch.");
         var walls = new HashSet<string>();
         var requestedRoomTags = new HashSet<string>();
+        var levelNames = changes.Operations.Any(op => op.Kind == "create_level")
+            ? new FilteredElementCollector(doc).OfClass(typeof(Level)).Cast<Level>()
+                .Select(level => level.Name).ToHashSet(StringComparer.OrdinalIgnoreCase) : null;
         foreach (var op in changes.Operations)
         {
             switch (op.Kind)
             {
+                case "create_level":
+                    if (!levelNames!.Add(op.Name!)) throw Error("DUPLICATE_LEVEL_NAME", "Level name already exists; inspect and preview again.");
+                    break;
                 case "dimension": case "family_instance":
                     NativeExtensions.Preflight(doc, op, Get<Level>(doc, changes.LevelId)); break;
                 case "wall":
@@ -661,6 +667,9 @@ internal sealed class DraftingService
                     Element element;
                     switch (op.Kind)
                     {
+                        case "create_level":
+                            var newLevel = Level.Create(doc, Feet(op.ElevationMm!.Value));
+                            newLevel.Name = op.Name!; element = newLevel; break;
                         case "dimension": case "family_instance":
                             element = NativeExtensions.Create(doc, op, level); break;
                         case "wall": element = Wall.Create(doc, NativeExtensions.WallCurve(doc.Application, op, level),
@@ -760,6 +769,9 @@ internal sealed class DraftingService
             {
                 if (op.Kind == "delete") continue;
                 var element = created[op.Key];
+                if (op.Kind == "create_level" && (element is not Level verifiedLevel || verifiedLevel.Name != op.Name ||
+                    Math.Abs(Mm(verifiedLevel.ProjectElevation) - op.ElevationMm!.Value) > 0.001))
+                    throw Error("VERIFY_FAILED", "Level name or project elevation read-back mismatch.");
                 NativeExtensions.VerifyPlacement(op, element, Get<Level>(doc, p.Changes.LevelId));
                 if (op.Kind is "dimension" or "family_instance")
                     NativeExtensions.Verify(doc, op, element, Get<Level>(doc, p.Changes.LevelId));
@@ -848,6 +860,8 @@ internal sealed class DraftingService
     }
     private static object Describe(Element e)
     {
+        if (e is Level level) return new { id = level.UniqueId, name = level.Name,
+            elementKind = "level", elevationMm = Mm(level.ProjectElevation), missing = false };
         var relatedRooms = DoorWindowRooms(e);
         var roomBoundary = e is Room boundedRoom ? RoomBoundary(boundedRoom) : ("not_a_room", (object[]?)null);
         var roomCurveBoundary = e is Room curvedRoom ? RoomCurveBoundary(curvedRoom) : ("not_a_room", (object[]?)null);

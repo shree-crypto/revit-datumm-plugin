@@ -177,5 +177,37 @@ test('room color scheme reads and assignments require native operation schema 3'
     assert.equal(validCommandResponse('preview_changes',preview.data),true);
     operationKinds=['wall'];
     await assert.rejects(client.call('command',sessionId,schemeQuery),error=>error.code==='UPGRADE_REQUIRED');
+    const levelChanges={...changes,operations:[{kind:'create_level',key:'l2',name:'Level 2',elevationMm:3000}]};
+    const before=calls.filter(call=>call==='preview_changes').length;
+    await assert.rejects(client.call('command',sessionId,{tool:'preview_changes',arguments:levelChanges}),error=>error.code==='UPGRADE_REQUIRED');
+    assert.equal(calls.filter(call=>call==='preview_changes').length,before);
+    operationKinds=['wall','create_level'];
+    await client.call('command',sessionId,{tool:'preview_changes',arguments:levelChanges});
+    assert.equal(calls.filter(call=>call==='preview_changes').length,before+1);
   }finally{await new Promise(resolve=>server.close(resolve));await rm(directory,{recursive:true,force:true});}
+});
+
+
+test('create_level contract is bounded, strict and restricted to level-only batches',()=>{
+  const level={kind:'create_level',key:'l2',name:'Level 2',elevationMm:3000};
+  assert(operation.safeParse(level).success);
+  for(const elevationMm of [-1000000,1000000]) assert(operation.safeParse({...level,elevationMm}).success);
+  for(const edit of [{name:' Level 2'},{name:'x'.repeat(101)},{name:''},{name:'   '},{elevationMm:NaN},{elevationMm:Infinity},{elevationMm:1000001},{elevationMm:-1000001},{typeId:'unexpected'}])
+    assert(!operation.safeParse({...level,...edit}).success);
+  const base={sessionId:randomUUID(),documentId:randomUUID(),expectedRevision:0,levelId:'anchor',units:'mm',coordinateFrame:'revit-internal-xy',title:'Levels'};
+  assert(draftingTools.preview_changes.schema.safeParse({...base,operations:[level]}).success);
+  assert(!draftingTools.preview_changes.schema.safeParse({...base,levelId:'',operations:[level]}).success);
+  assert(!draftingTools.preview_changes.schema.safeParse({...base,operations:[level,{...level,key:'l3',name:'level 2'}]}).success);
+  assert(!draftingTools.preview_changes.schema.safeParse({...base,operations:[level,{kind:'room',key:'room',name:'Room',point:{x:0,y:0}}]}).success);
+});
+
+
+test('level apply readback requires finite elevation and rejects unknown level fields',()=>{
+  const receipt={operationId:randomUUID(),proposalHash:'a'.repeat(64),documentId:randomUUID(),state:'committed',elementIds:['level'],warnings:[],error:null,updatedAt:new Date().toISOString()};
+  const element={id:'level',name:'Level 2',elementKind:'level',elevationMm:3000,missing:false};
+  const result={receipt,revision:3,elements:[{key:'l2',element}]};
+  assert(validCommandResponse('apply_change_set',result));
+  assert(!validCommandResponse('apply_change_set',{...result,elements:[{key:'l2',element:{...element,elevationMm:NaN}}]}));
+  assert(!validCommandResponse('apply_change_set',{...result,elements:[{key:'l2',element:{...element,missing:true}}]}));
+  assert(!validCommandResponse('apply_change_set',{...result,elements:[{key:'l2',element:{...element,extra:true}}]}));
 });

@@ -216,15 +216,15 @@
     "semantic_hash": ""
   },
   "revit-mcp/src/bridge.ts": {
-    "mtime": 1792755146.33794,
-    "seen": 1792924467.7587297,
-    "ast_hash": "f6ca97820cd37fd2a9b931cf3db1c649",
+    "mtime": 1793475427.0054991,
+    "seen": 1793475767.6200285,
+    "ast_hash": "762342254fe32745edfb007b9467933f",
     "semantic_hash": ""
   },
   "revit-mcp/src/drafting.ts": {
-    "mtime": 1792775149.8702343,
-    "seen": 1792924467.7587304,
-    "ast_hash": "8ea46a09d5092be18e0a4e0aede5d5cf",
+    "mtime": 1793475638.4494557,
+    "seen": 1793475767.620032,
+    "ast_hash": "39515f78d6069722b6581d9dfb0f0b64",
     "semantic_hash": ""
   },
   "revit-mcp/src/geometry-v3.ts": {
@@ -330,9 +330,9 @@
     "semantic_hash": ""
   },
   "revit-mcp/tests/native-extensions.test.mjs": {
-    "mtime": 1792923978.7524805,
-    "seen": 1792924467.7587466,
-    "ast_hash": "a29dd65e60a760782f69ff2926765df9",
+    "mtime": 1793475895.8045979,
+    "seen": 1793475979.0235393,
+    "ast_hash": "be64972abc3cc69e29d6d8b7c859fd2b",
     "semantic_hash": ""
   },
   "revit-mcp/tests/plan-drawing.test.mjs": {
@@ -402,9 +402,9 @@
     "semantic_hash": ""
   },
   "revit-plugin/src/Datumm.Bridge/DraftingContracts.cs": {
-    "mtime": 1792750382.0861058,
-    "seen": 1792924467.758757,
-    "ast_hash": "7bd950745e7463b4bd8386b550e8a405",
+    "mtime": 1793475426.996772,
+    "seen": 1793475767.6201048,
+    "ast_hash": "95d6d2d0918390e234d1410856d33e2c",
     "semantic_hash": ""
   },
   "revit-plugin/src/Datumm.Bridge/ExistingMutationIdentityPolicy.cs": {
@@ -462,9 +462,9 @@
     "semantic_hash": ""
   },
   "revit-plugin/src/Datumm.Revit/DraftingService.cs": {
-    "mtime": 1792775793.799142,
-    "seen": 1792924467.758766,
-    "ast_hash": "6437e94e120d97c69f77a7ff99d76755",
+    "mtime": 1793475638.4474578,
+    "seen": 1793475767.6201265,
+    "ast_hash": "819c6cbcf0956a6f4fef67683ed62fec",
     "semantic_hash": ""
   },
   "revit-plugin/src/Datumm.Revit/ModelInspection.cs": {
@@ -480,9 +480,9 @@
     "semantic_hash": ""
   },
   "revit-plugin/src/Datumm.Revit/NativeExtensions.cs": {
-    "mtime": 1792924294.5241213,
-    "seen": 1792924467.7587683,
-    "ast_hash": "10d951b264205a9dd35238f67b9027de",
+    "mtime": 1793475427.0020869,
+    "seen": 1793475767.6201334,
+    "ast_hash": "a8a49908f4b9363719b6e28615ba0ef3",
     "semantic_hash": ""
   },
   "revit-plugin/src/Datumm.Revit/ReadDispatcher.cs": {
@@ -510,9 +510,9 @@
     "semantic_hash": ""
   },
   "revit-plugin/tests/Datumm.Bridge.TestHost/ContractChecks.cs": {
-    "mtime": 1792749889.5537796,
-    "seen": 1792924467.758773,
-    "ast_hash": "c153745f00d4612bc135dfe144808f68",
+    "mtime": 1793475895.8015268,
+    "seen": 1793475979.0236197,
+    "ast_hash": "02ac328dea3ceabd5f6c50ce26d527f4",
     "semantic_hash": ""
   },
   "revit-plugin/tests/Datumm.Bridge.TestHost/Datumm.Bridge.TestHost.csproj": {
@@ -669,6 +669,18 @@
     "mtime": 1792749267.21456,
     "seen": 1792924467.7587962,
     "ast_hash": "627ecaf880b2b07f2f4754b400859998",
+    "semantic_hash": ""
+  },
+  "lat.md/lat.md": {
+    "mtime": 1793475837.1448257,
+    "seen": 1793475889.20257,
+    "ast_hash": "6ed2aa0456d6c0f14c798c39c25d79ac",
+    "semantic_hash": ""
+  },
+  "lat.md/native-levels.md": {
+    "mtime": 1793475638.4514565,
+    "seen": 1793475767.620199,
+    "ast_hash": "b2fabc9597b282b4c1d8ae27082fcf7f",
     "semantic_hash": ""
   }
 }

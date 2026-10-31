@@ -35,6 +35,24 @@ internal static class ContractChecks
         var points = new[] { new PointMm(0,0), new PointMm(4000,0), new PointMm(4000,3000), new PointMm(0,3000) };
         ChangeSet Make(DraftOperation[] ops, string? phaseId = null) => new() { DocumentId = "5fc469ef-5cc6-4bd9-a7dc-c5683f852067", ExpectedRevision = 0,
             LevelId = "level-fixture", Units = "mm", CoordinateFrame = "revit-internal-xy", Title = "Fixture", Operations = ops, PhaseId = phaseId };
+        DraftOperation Level(string name, double elevation = 3000) => JsonSerializer.Deserialize<DraftOperation>(
+            $$"""{"kind":"create_level","key":"new-level","name":{{JsonSerializer.Serialize(name)}},"elevationMm":{{elevation}}}""", Protocol.Json)!;
+        Make([Level("Level 2")]).Validate();
+        Make([Level("Lower", -1000000)]).Validate(); Make([Level("Upper", 1000000)]).Validate();
+        Reject(() => Make([Level("")]).Validate(), "INVALID_OPERATION");
+        Reject(() => Make([Level("   ")]).Validate(), "INVALID_OPERATION");
+        Reject(() => Make([Level("Below", -1000001)]).Validate(), "INVALID_OPERATION");
+        Reject(() => Make([new() { Kind = "create_level", Key = "infinity", Name = "L2", ElevationMm = double.PositiveInfinity }]).Validate(), "INVALID_OPERATION");
+        Reject(() => new ChangeSet { DocumentId = "5fc469ef-5cc6-4bd9-a7dc-c5683f852067", ExpectedRevision = 0,
+            LevelId = "", Units = "mm", CoordinateFrame = "revit-internal-xy", Title = "Fixture", Operations = [Level("L2")] }.Validate(), "INVALID_CHANGE_SET");
+        Reject(() => Make([new() { Kind = "create_level", Key = "nan", Name = "L2", ElevationMm = double.NaN }]).Validate(), "INVALID_OPERATION");
+        Reject(() => Make([new() { Kind = "room", Key = "room", Name = "Room", Point = new(0,0), ElevationMm = 0 }]).Validate(), "INVALID_OPERATION");
+        Reject(() => Make([Level(" Level 2")]).Validate(), "INVALID_OPERATION");
+        Reject(() => Make([Level(new string('x', 101))]).Validate(), "INVALID_OPERATION");
+        Reject(() => Make([Level("Level 2", 1000001)]).Validate(), "INVALID_OPERATION");
+        Reject(() => Make([Level("Level 2"), JsonSerializer.Deserialize<DraftOperation>("{\"kind\":\"create_level\",\"key\":\"other\",\"name\":\"level 2\",\"elevationMm\":0}", Protocol.Json)!]).Validate(), "INVALID_OPERATION");
+        Reject(() => Make([Level("Level 2"), new() { Kind = "room", Key = "room", Name = "Room", Point = new(0,0) }]).Validate(), "UNSUPPORTED_OPERATION_BATCH");
+        Reject(() => Make([JsonSerializer.Deserialize<DraftOperation>("{\"kind\":\"create_level\",\"key\":\"new\",\"name\":\"L2\",\"elevationMm\":0,\"typeId\":\"x\"}", Protocol.Json)!]).Validate(), "INVALID_OPERATION");
         var valid = Make([new() { Kind = "floor", Key = "slab", TypeId = "floor-fixture", Boundary = points }]);
         valid.Validate();
         var roomName = Make([new() { Kind = "set_room_metadata", Key = "room-name", ElementId = "room-fixture", Name = "Bedroom 3" }]);

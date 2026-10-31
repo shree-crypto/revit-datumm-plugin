@@ -29,6 +29,8 @@ public sealed class DraftOperation
     public double? SillMm { get; init; }
     public string? Name { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public double? ElevationMm { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Number { get; init; }
     public string? Value { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -62,6 +64,11 @@ public sealed class ChangeSet
             throw new BridgeException("UNSUPPORTED_OPERATION_BATCH", "Room color scheme assignments must be reviewed in a separate all-color batch.");
         if (PhaseId != null && (string.IsNullOrWhiteSpace(PhaseId) || PhaseId.Length > 200 || Operations.Any(op => op?.Kind != "door")))
             throw new BridgeException("UNSUPPORTED_OPERATION_BATCH", "A phase-bound change set must contain only doors and a current phase UniqueId.");
+        if (Operations.Any(op => op?.Kind == "create_level") && Operations.Any(op => op?.Kind != "create_level"))
+            throw new BridgeException("UNSUPPORTED_OPERATION_BATCH", "Level creation must be reviewed in a separate level-only batch.");
+        var levelNames = Operations.Where(op => op?.Kind == "create_level").Select(op => op.Name).ToArray();
+        if (levelNames.Distinct(StringComparer.OrdinalIgnoreCase).Count() != levelNames.Length)
+            throw new BridgeException("INVALID_OPERATION", "Level names must be unique within the batch.");
         var colorAssignments = Operations.Where(op => op?.Kind == "set_room_color_scheme").ToArray();
         if (colorAssignments.Select(op => op.ViewId).Distinct(StringComparer.Ordinal).Count() != colorAssignments.Length)
             throw new BridgeException("UNSUPPORTED_OPERATION_BATCH", "Assign a room color scheme only once per view in a reviewed batch.");
@@ -76,12 +83,22 @@ public sealed class ChangeSet
             Require(op.Kind == "dimension" || op.StableReferences == null, "Stable references are only supported for dimensions.");
             Require(op.Kind == "set_room_metadata" || op.Number == null, "Room number is only supported for room metadata edits.");
             Require(op.Kind == "set_room_color_scheme" || op.SchemeId == null, "Scheme ID is only supported for room color scheme assignments.");
+            Require(op.Kind == "create_level" || op.ElevationMm == null, "Elevation is only supported for level creation.");
             Require(op.Kind == "wall" || op.ArcMid == null, "Arc midpoint is only supported for walls.");
             foreach (var p in new[] { op.Start, op.End, op.ArcMid, op.Point }.Concat(op.Boundary ?? []))
                 if (p != null && (!double.IsFinite(p.X) || !double.IsFinite(p.Y) || Math.Abs(p.X) > 1000000 || Math.Abs(p.Y) > 1000000))
                     throw new BridgeException("INVALID_COORDINATES", "Coordinates must be finite and within 1 km of internal origin.");
             switch (op.Kind)
             {
+                case "create_level":
+                    Require(op.Name != null && ValidRoomMetadata(op.Name) && op.ElevationMm is double elevation &&
+                        double.IsFinite(elevation) && Math.Abs(elevation) <= 1000000 &&
+                        op.TypeId == null && op.SchemeId == null && op.ElementId == null && op.ViewId == null &&
+                        op.Host == null && op.Start == null && op.End == null && op.ArcMid == null && op.Point == null &&
+                        op.Boundary == null && op.HeightMm == null && op.SillMm == null && op.Number == null &&
+                        op.Value == null && op.RotationDegrees == null && op.StableReferences == null,
+                        "Level requires only a trimmed name up to 100 characters and finite project elevation within 1 km.");
+                    break;
                 case "wall":
                     Require(op.Start != null && op.End != null && op.TypeId != null && op.HeightMm is > 100 and <= 20000,
                         "Wall requires endpoints, type and height 100–20000 mm.");

@@ -21,6 +21,7 @@ const wall = z.object({ kind: z.literal('wall'), key, typeId: id, start: point, 
       ctx.addIssue({code:z.ZodIssueCode.custom,message:'Arc points must be distinct and non-collinear.'});
   });
 export const operation = z.union([
+  z.object({kind:z.literal('create_level'),key,name:z.string().min(1).max(100).regex(/^\S(?:[\s\S]*\S)?$/),elevationMm:z.number().finite().min(-1000000).max(1000000)}).strict(),
   wall,
   z.object({ kind: z.literal('floor'), key, typeId: id, boundary: z.array(point).min(3).max(64) }).strict(),
   z.object({ kind: z.literal('door'), key, typeId: id, host: id, point, sillMm: z.number().min(0).max(10000) }).strict(),
@@ -40,7 +41,9 @@ export const operation = z.union([
 export const changeSet = z.object({ documentId: z.string().uuid(), expectedRevision: z.number().int().nonnegative(),
   levelId: id, units: z.literal('mm'), coordinateFrame: z.literal('revit-internal-xy'), title: z.string().min(1).max(120),
   phaseId:id.optional(),operations: z.array(operation).min(1).max(100) }).strict()
-  .refine(row=>!row.phaseId || row.operations.every(op=>op.kind==='door'),{message:'Phase-bound change sets support door-only batches.',path:['operations']});
+  .refine(row=>!row.phaseId || row.operations.every(op=>op.kind==='door'),{message:'Phase-bound change sets support door-only batches.',path:['operations']})
+  .refine(row=>!row.operations.some(op=>op.kind==='create_level') || row.operations.every(op=>op.kind==='create_level'),{message:'Level creation requires a level-only batch.',path:['operations']})
+  .refine(row=>{const names=row.operations.filter(op=>op.kind==='create_level').map(op=>op.name.toUpperCase());return new Set(names).size===names.length;},{message:'Level names must be unique within the batch.',path:['operations']});
 export const draftingTools = {
   get_native_capabilities: {description:'Read native operation schema, supported placements, build and bounded limits. Required before new operation dispatch. Optional mirrorProbe checks only the exact inspected root set for native eligibility; it does not mirror, qualify a plane, verify dimensions or perform rollback.',
     schema:z.object({sessionId:z.string().uuid(),mirrorProbe:z.object({documentId:z.string().uuid(),expectedRevision:z.number().int().nonnegative(),
@@ -106,10 +109,13 @@ const roomBoundaryCurves=z.array(z.array(roomBoundaryCurve).min(1).max(256)).min
   if(loops.reduce((count,loop)=>count+loop.length,0)>256)
     ctx.addIssue({code:z.ZodIssueCode.custom,message:'Room curve evidence exceeds 256 segments.'});
 });
+const levelReadback=z.object({id,name:z.string(),elementKind:z.literal('level'),elevationMm:z.number().finite(),missing:z.literal(false)}).strict();
 const nativeElement=z.object({curveKind:z.string().nullable().optional(),curve:curveReadback.nullable().optional(),
   roomCurveBoundaryStatus:z.enum(['not_a_room','complete','incomplete','unavailable_or_unenclosed','too_large','unavailable']).optional(),
   roomBoundaryCurves:roomBoundaryCurves.nullable().optional()}).passthrough()
   .superRefine((row,ctx)=>{
+    if(row.elementKind==='level' && !levelReadback.safeParse(row).success)
+      ctx.addIssue({code:z.ZodIssueCode.custom,message:'Level readback requires an ID, name and finite elevation.'});
     if(row.curveKind==='Arc'&&row.curve){
       const curve=row.curve;
       const analyticalKeys=['lengthMm','center','radiusMm','mid','normal'] as const;
@@ -135,7 +141,7 @@ export function validCommandResponse(tool: string, data: unknown): boolean {
   const boundaryOpening=z.object({id,hostId:id,fromMm:z.number().finite(),toMm:z.number().finite(),lowerZMm:z.number().finite(),
     upperZMm:z.number().finite(),fromRoomId:id.nullable(),toRoomId:id.nullable(),complete:z.boolean()}).strict();
   const status = z.object({ receipt: receipt.nullable(), state: z.enum(['unknown', 'committed', 'rolled_back', 'failed', 'not_found']),
-    sameDocument: z.boolean(), elements: z.array(z.unknown()).nullable(),
+    sameDocument: z.boolean(), elements: z.array(nativeElement).nullable(),
     deletedElements:z.array(z.object({id,missing:z.boolean()}).strict()).nullable().optional(), guidance: z.string() }).strict();
   const schemas: Record<string, z.ZodType> = {
     get_native_capabilities:z.object({...identity,schemaVersion:z.literal(1),operationSchemaVersion:z.union([z.literal(2),z.literal(3),z.literal(4)]),inspectionSchemaVersion:z.literal(2).optional(),minimumMcpVersion:z.enum(['0.2.0-alpha.2','0.2.0-alpha.3','0.2.0-alpha.4','0.2.0-alpha.5']),
@@ -200,7 +206,7 @@ export function validCommandResponse(tool: string, data: unknown): boolean {
     preview_changes: z.object({ ...identity, proposalId: z.string().uuid(), approvalHash: z.string().regex(/^[a-f0-9]{64}$/), expiresAt: z.string(),
       changes: z.object({}).passthrough(), deletions:z.array(deletion).optional(), approval: z.string() }).strict(),
     approve_change_set: z.object({ approved: z.literal(true), proposalId: z.string().uuid(), approvalHash: z.string().regex(/^[a-f0-9]{64}$/), documentId: z.string().uuid(), revision: z.number().int().nonnegative() }).strict(),
-    apply_change_set: z.union([status, z.object({ receipt, revision: z.number().int(), previewOnly: z.boolean().optional(), elements: z.array(z.unknown()).optional(), deletions:z.array(deletion).optional() }).strict()]),
+    apply_change_set: z.union([status, z.object({ receipt, revision: z.number().int(), previewOnly: z.boolean().optional(), elements: z.array(z.object({key,element:nativeElement}).strict()).optional(), deletions:z.array(deletion).optional() }).strict()]),
     get_operation_status: status,
   };
   return schemas[tool]?.safeParse(data).success ?? false;

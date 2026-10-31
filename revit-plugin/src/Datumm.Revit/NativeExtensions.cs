@@ -23,7 +23,7 @@ internal static class NativeExtensions
         wallCurveKinds = new[] { "line", "arc" },
         roomBoundaryCurveKinds = new[] { "line", "arc" },
         phaseBoundOperationKinds = new[] { "door" },
-        operationKinds = new[] { "wall", "floor", "door", "window", "room", "room_tag", "dimension", "family_instance", "move", "set_comments", "set_room_metadata", "set_room_color_scheme", "change_type", "delete" },
+        operationKinds = new[] { "create_level", "wall", "floor", "door", "window", "room", "room_tag", "dimension", "family_instance", "move", "set_comments", "set_room_metadata", "set_room_color_scheme", "change_type", "delete" },
         placementSupport = new[] { "wall-hosted-openings", "non-hosted-OneLevelBased-furniture", "host-straight-wall-planar-side-face-linear-dimensions" },
         limits = new { operations = 100, pageSize = 100, dimensionReferences = 8, imageBytes = 1500000, imagePixels = 2048 },
         limitations = new[] { "Host document only. No linked references, arbitrary family loading, face/workplane furniture, chained dimension editing or native execution from pixels.",

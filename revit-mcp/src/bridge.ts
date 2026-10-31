@@ -158,7 +158,7 @@ export class BridgeClient {
         !!command.arguments?.viewId && command.tool === 'get_model_elements' ||
         !!command.arguments?.phaseId && command.tool === 'get_model_elements' ||
         command.tool === 'get_model_views' && command.arguments?.kind === 'room-color-schemes' ||
-        command.tool === 'preview_changes' && command.arguments?.operations?.some(op=>['dimension','family_instance','set_room_color_scheme'].includes(op.kind)) || arcContract || phaseContract || warningContract || roomBoundaryContract;
+        command.tool === 'preview_changes' && command.arguments?.operations?.some(op=>['dimension','family_instance','set_room_color_scheme','create_level'].includes(op.kind)) || arcContract || phaseContract || warningContract || roomBoundaryContract;
       const roomColorContract = command.tool === 'get_model_views' && command.arguments?.kind === 'room-color-schemes' ||
         command.tool === 'preview_changes' && command.arguments?.operations?.some(op=>op.kind === 'set_room_color_scheme');
       if (roomColorContract && !extended) throw new BridgeError('UPGRADE_REQUIRED','Install the matching MCP and Revit bridge before using room color schemes.');
